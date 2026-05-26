@@ -15,7 +15,7 @@ fagus_sylv_dat_maxtemp$TreeID <-as.factor(fagus_sylv_dat_maxtemp$TreeID)
 fagus_sylv_dat_maxtemp$SiteID <- as.factor(fagus_sylv_dat_maxtemp$SiteID)
 #####
 
-#mean centring climate data 
+#mean centring climate data and calculating quadratics
 #####
 mean_centred_fagus_dataset <- data.frame()
 fagus_populations <- unique(fagus_sylv_dat_maxtemp$SiteID)
@@ -68,21 +68,73 @@ hist(log1p(scaled_mean_centred_fagus_dataset$Ring.width))
 model1 <- lmer(log1p(Ring.width)~Among+Within+WithinQuad4+AmongQuad+
                                Scaled_Elevation+as.numeric(Year)+
                                (1|TreeID)+
-                               (1|SiteID)+
                                (1|Year)+
                                (1|SiteID:Year)+
                                ns(Scaled_Age, df=4),
+               REML = FALSE,
                              data=scaled_mean_centred_fagus_dataset)
-summary(model1)
+
 #uses quadratic equation 3 from Fay et al 
 model1_2 <- lmer(log1p(Ring.width)~Among+Within+WithinQuad3+AmongQuad+
                  Scaled_Elevation+Centred_year+
                  (1|TreeID)+
-                 (1|SiteID)+
                  (1|Year)+
                  (1|SiteID:Year)+
                  ns(Scaled_Age, df=4),
+                 REML = FALSE,
                data=scaled_mean_centred_fagus_dataset)
+
+#plotting among prediction 
+plot(log1p(Ring.width)~Among, data=scaled_mean_centred_fagus_dataset)
+points(newdata$Among, modelpred, lwd="1", col="red")
+
+#plotting within prediction
+plot(log1p(Ring.width)~Avg_max_summ_temp, data=scaled_mean_centred_fagus_dataset)
+plot(log1p(Ring.width)~Within, data=scaled_mean_centred_fagus_dataset)
+points(newdata$Within, modelpred2, lwd="1", col="red")
+#####
+
+#model 2 <- model2_90 is working model
+#####
+#in this model, a random effect for age effects by site is included.
+#uses quadratic equation 4 from Fay et al 
+#1: In checkConv(attr(opt, "derivs"), opt$par, ctrl = control$checkConv,  :
+#Model failed to converge with max|grad| = 0.00351187 (tol = 0.002, component 1)
+#2: 1: In checkConv(attr(opt, "derivs"), opt$par, ctrl = control$checkConv,  :
+#unable to evaluate scaled gradient
+#2: In checkConv(attr(opt, "derivs"), opt$par, ctrl = control$checkConv,  :
+#                  Model failed to converge: degenerate  Hessian with 3 negative eigenvalues
+
+#trying without the outlier age site
+#Warning messages:
+#  1: In checkConv(attr(opt, "derivs"), opt$par, ctrl = control$checkConv,  :
+ #                   unable to evaluate scaled gradient
+  #                2: In checkConv(attr(opt, "derivs"), opt$par, ctrl = control$checkConv,  :
+   #                                 Model failed to converge: degenerate  Hessian with 1 negative eigenvalues
+
+library(dplyr)
+library(ggplot2)
+ggplot(data=no_outlier, aes(x=Age, y=Ring.width, colour=SiteID))+
+  geom_line()+
+  facet_wrap(vars(SiteID))
+
+#this dataset has a tree that is over 400 years old, much older than the other trees
+no_outlier <- scaled_mean_centred_fagus_dataset %>% 
+  filter(SiteID != "FRFS06")
+
+#No errors for this model
+#Applying the random site effect to the 2nd and 3rd polynomial
+model2_90 <- lmer(log1p(Ring.width)~Among+Within+WithinQuad4+AmongQuad+
+                      Scaled_Elevation+Centred_year+
+                      (1|TreeID)+
+                      (1|Year)+
+                 (1|SiteID:Year)+
+                      ns(Scaled_Age, df=4)+
+                      (1+ns(Scaled_Age, df=4)[,2]+
+                         ns(Scaled_Age, df=4)[,3]|SiteID),
+                    REML = FALSE,
+                    data=scaled_mean_centred_fagus_dataset)
+summary(model2_90)
 
 #plotting model onto graph by predicting (without random effects)
 #using sequence of among or within and fixing other fixed effects, besides quadratic which varies correspondingly
@@ -91,22 +143,23 @@ med_year <- median(scaled_mean_centred_fagus_dataset$Centred_year)
 med_elev <- median(scaled_mean_centred_fagus_dataset$Scaled_Elevation)
 med_within <- median(scaled_mean_centred_fagus_dataset$Within)
 med_age <- median(scaled_mean_centred_fagus_dataset$Scaled_Age)
-med_withinquad3 <- median(scaled_mean_centred_fagus_dataset$WithinQuad3)
+med_withinquad4 <- median(scaled_mean_centred_fagus_dataset$WithinQuad4)
 pred_quad <- c(16:28)^2
 
 range(scaled_mean_centred_fagus_dataset$Within)
 pred2<-c(-3:5)
 pred2_quad <- c()
+
 med_among <- median(scaled_mean_centred_fagus_dataset$Among)
 med_amongquad3 <- median(scaled_mean_centred_fagus_dataset)
 
 newdata <- data.frame(Among=pred, Centred_Year=rep(med_year, length(pred)), Scaled_Age = rep(med_age, length(pred)),
-                         Scaled_Elevation=rep(med_elev, length(pred)), Within=rep(med_within, length(pred)),
-                         WithinQuad3=rep(med_withinquad3, length(pred)), AmongQuad=pred_quad)
+                      Scaled_Elevation=rep(med_elev, length(pred)), Within=rep(med_within, length(pred)),
+                      WithinQuad3=rep(med_withinquad4, length(pred)), AmongQuad=pred_quad)
 
 newdata2 <- data.frame(Among=rep(med_among, length(pred2)), Centred_Year=rep(med_year, length(pred2)), Scaled_Age = rep(med_age, length(pred2)),
-                      Scaled_Elevation=rep(med_elev, length(pred2)), Within=pred2,
-                      WithinQuad3=pred2_quad, AmongQuad=rep(med_amongquad3, length(pred2)))
+                       Scaled_Elevation=rep(med_elev, length(pred2)), Within=pred2,
+                       WithinQuad4=pred2_quad, AmongQuad=rep(med_amongquad3, length(pred2)))
 
 
 newdata$Centred_year <- as.numeric(newdata$Centred_Year)
@@ -121,52 +174,20 @@ modelpred2<-predict(model1_2,newdata=newdata2,re.form=NA, type = "response")
 
 modelpred
 
-#plotting among prediction 
-plot(log1p(Ring.width)~Among, data=scaled_mean_centred_fagus_dataset)
-points(newdata$Among, modelpred, lwd="1", col="red")
+#fitting individual tree age spline 
 
-#plotting within prediction
-plot(log1p(Ring.width)~Within, data=scaled_mean_centred_fagus_dataset)
-points(newdata$Within, modelpred2, lwd="1", col="red")
-#####
-
-#model 2 
-#####
-#in this model, a random effect for age effects by site is included.
-#uses quadratic equation 4 from Fay et al 
-#1: In checkConv(attr(opt, "derivs"), opt$par, ctrl = control$checkConv,  :
-#Model failed to converge with max|grad| = 0.00351187 (tol = 0.002, component 1)
-#2: 1: In checkConv(attr(opt, "derivs"), opt$par, ctrl = control$checkConv,  :
-#unable to evaluate scaled gradient
-#2: In checkConv(attr(opt, "derivs"), opt$par, ctrl = control$checkConv,  :
-#                  Model failed to converge: degenerate  Hessian with 3 negative eigenvalues
-
-#trying without the outlier age site
-#1: In checkConv(attr(opt, "derivs"), opt$par, ctrl = control$checkConv,  :unable to evaluate scaled gradient
-#2: In checkConv(attr(opt, "derivs"), opt$par, ctrl = control$checkConv,  :
-                  #Model failed to converge: degenerate  Hessian with 3 negative eigenvalues
-#3: Model failed to converge with 1 negative eigenvalue: -6.7e-03 
-
-library(dplyr)
-library(ggplot2)
-ggplot(data=no_outlier, aes(x=Age, y=Ring.width, colour=SiteID))+
-  geom_line()+
-  facet_wrap(vars(SiteID))
-
-no_outlier <- scaled_mean_centred_fagus_dataset %>% 
-  filter(SiteID != "FRFS06")
-
-model2 <- lmer(log1p(Ring.width)~Among+Within+WithinQuad4+AmongQuad+
+#boundary (singular) fit: see help('isSingular')
+#Warning message:
+#  Model failed to converge with 2 negative eigenvalues: -8.7e-03 -2.7e+01 
+model2_test <- lmer(log1p(Ring.width)~Among+Within+WithinQuad4+AmongQuad+
                   Scaled_Elevation+Centred_year+
                   (1|TreeID)+
-                  (1|SiteID)+
                   (1|Year)+
-                  (1|SiteID:Year)+
                   ns(Scaled_Age, df=4)+
-                  (1+ns(Scaled_Age, df=4)|SiteID),
+                  (1+ns(Scaled_Age, df=4)|SiteID:Year),
+               REML = FALSE,
                 data=scaled_mean_centred_fagus_dataset)
 
-summary(model2)
 
 #uses quadratic equation 3 from Fay et al 
 #SiteID random effect has been removed.
@@ -177,33 +198,58 @@ model2_2 <- lmer(log1p(Ring.width)~Among+Within+WithinQuad3+AmongQuad+
                                Scaled_Elevation+Centred_year+
                                (1|TreeID)+
                                (1|Year)+
-                              #(1|SiteID)+
                                (1|SiteID:Year)+
                                ns(Scaled_Age, df=4)+
                                (1+ns(Scaled_Age, df=4)|SiteID),
+                 REML = FALSE,
                              data=scaled_mean_centred_fagus_dataset)
 summary(model2_2)
+
+#with SiteID added back in 
+#Warning messages:
+#  1: In checkConv(attr(opt, "derivs"), opt$par, ctrl = control$checkConv,  :
+#                    Model failed to converge with max|grad| = 0.00222859 (tol = 0.002, component 1)
+#                  2: In checkConv(attr(opt, "derivs"), opt$par, ctrl = control$checkConv,  :
+#                                    Model is nearly unidentifiable: large eigenvalue ratio
+#                                  - Rescale variables?
+
+model2_2 <- lmer(log1p(Ring.width)~Among+Within+WithinQuad3+AmongQuad+
+                   Scaled_Elevation+Centred_year+
+                   (1|TreeID)+
+                   (1|Year)+
+                   (1|SiteID)+
+                   (1|SiteID:Year)+
+                   ns(Scaled_Age, df=4)+
+                   (1+ns(Scaled_Age, df=4)|SiteID),
+                 REML = FALSE,
+                 data=scaled_mean_centred_fagus_dataset)
+summary(model2_2)
+
 #taking SiteID out improves AIC by only 2 and also returns model failed to converge degenerate Hessian warning.
 #####
 
 #model 3
 #####
-#fit without standardising age and elevation 
-#1: Some predictor variables are on very different scales: consider rescaling 
+#Warning messages:
+ # 1: Some predictor variables are on very different scales: consider rescaling 
 #2: In checkConv(attr(opt, "derivs"), opt$par, ctrl = control$checkConv,  :
-#                  Model failed to converge with max|grad| = 0.00285995 (tol = 0.002, component 1)
-#                3: Some predictor variables are on very different scales: consider rescaling 
+  #                unable to evaluate scaled gradient
+   #             3: In checkConv(attr(opt, "derivs"), opt$par, ctrl = control$checkConv,  :
+    #                              Model failed to converge: degenerate  Hessian with 3 negative eigenvalues
+     #                           4: Some predictor variables are on very different scales: consider rescaling 
 model3 <- lmer(log1p(Ring.width)~Among+Within+WithinQuad3+AmongQuad+
                    Elevation+Centred_year+
                    (1|TreeID)+
-                   (1|SiteID)+
                    (1|Year)+
                    (1|SiteID:Year)+
-                   ns(Age, df=4),
+                   ns(Age, df=4)+
+                 (1+ns(Age, df=4)|SiteID),
+               REML = FALSE,
                  data=scaled_mean_centred_fagus_dataset)
 summary(model3)
 
-
+aicresults <- AIC(model1, model1_2, model2, model2_test, model2_2, model3)
+aicresults
 #fit with gamma 
 #error: non positive values not allowed for the Gamma family 
 library(glmmTMB)
@@ -216,6 +262,7 @@ model3_in <- glmer(Ring.width~Among+Within+WithinQuad3+AmongQuad+Centred_year+
                  (1|SiteID:Year)+
                  ns(Scaled_Age, df=3)+
                 (1+ns(Scaled_Age, df=4)|SiteID),
+                REML = FALSE,
                data=scaled_mean_centred_fagus_dataset,
                family = "Gamma")
 #####
