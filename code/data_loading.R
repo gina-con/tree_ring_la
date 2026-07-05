@@ -17,11 +17,17 @@ unique(tree_ring_data$Species)
 #contains tree, year and ring width
 #####
 
-#extracting elevation data from site dataframe and adding to tree ring dataframe
+#extracting elevation data and latitude data from site dataframe and adding to tree ring dataframe
 #####
+library(dplyr)
 elevdata <- data.frame(site_data$SiteID, site_data$Elevation)
 colnames(elevdata) <- c("SiteID", "Elevation")
 compl_data <- left_join(tree_ring_data, elevdata, "SiteID")
+
+latdata <- data.frame(site_data$SiteID, site_data$Latitude)
+colnames(latdata) <- c("SiteID", "Latitude")
+compl_data <- left_join(compl_data, latdata, "SiteID")
+
 #####
 
 #subsetting fagus sylvatica data
@@ -34,21 +40,429 @@ fagus_sylv_dat <- compl_data %>%
 #calculating age 
 #####
 tree_id_list_2 <- c()
-n <- as.numeric(1)
+n <- 1
 tree_id_list_2 <- unique(fagus_sylv_dat$TreeID)
 
 fagus_sylv_age_df <- data.frame()
 
 #creating an age variable
+#This is sometimes a few years out from the actual age listed in the dataset...
 for (n in 1:length(tree_id_list_2)){
   subset <- fagus_sylv_dat %>% 
     filter(TreeID == tree_id_list_2[n])
   subset$Age <- 1:nrow(subset)
   fagus_sylv_age_df <- rbind(fagus_sylv_age_df, subset)
 }
+
+ggplot(aes(y=Ring.width, x=Age, col=SiteID), data=fagus_sylv_age_df)+
+  geom_line()+
+  facet_wrap(vars(SiteID))
 #####
 
-#subsetting Quercus petraea
+#climate data wrangling 
+######---
+#downloaded from Copernicus Climate Data Store on 03/05/2026 at 11:00 
+#ensemble mean, maximum temperature, across whole time period
+#downloaded from Copernicus Climate Data Store on 19/05/2026 at 14:00
+#ensemble mean, rel humidity, across whole time period
+#downloaded from Copernicus Climate Data Store on 26/05/2026
+#ensemble mean for precipitation amount 
+library(sp)
+library(raster)
+library(ncdf4) 
+library(here)
+library(ggplot2)
+
+#loading in E-obs maxtemp data
+maxtemp <- brick("Data/e_obs/climate_raw/maxtempdata.nc", varname="tx")
+meantemp <- brick("Data/e_obs/climate_raw/meantempdata.nc", varname="tg")
+
+#relhum and precip info is incomplete, many NAs, have replaced with coordinates of 
+#nearest trees 
+relhum <- brick("Data/e_obs/climate_raw/relhumdata.nc", varname="hu")
+precip <- brick("Data/e_obs/climate_raw/precipdata.nc", varname="rr")
+
+##climate data for fagus sylvatica, VPD, mean and max temp; precipitation will be added later
+#####
+#subsetting fagus sylvatica sites
+library(dplyr)
+fagus_sites_clim <- site_data %>% 
+  filter(Species == "Fagus sylvatica")
+fagus_sites_latlon <- fagus_sites_clim[,c(1,6,5)]
+
+#creating a dataframe with the coordinates in 
+write.csv(fagus_sites_latlon, "Data/e_obs/fagus_sites_coords.csv")
+
+#reading the coordinates in 
+fagus_coords <- read.csv("Data/e_obs/fagus_sites_coords.csv", header=TRUE, row.names="SiteID", sep=",")
+fagus_coords <- fagus_coords[,-1]
+quercus_coords <- read.csv("Data/e_obs/quercus_sites_coords.csv", header=TRUE, row.names="SiteID", sep=",")
+quercus_coords <- quercus_coords[,-1]
+
+#creating example map to visualise where sites are 
+plot(relhum$X2024.06.01)
+points(fagus_coords,pch=16,col="red")
+points(quercus_coords,pch=16,col="black")
+
+#extracting max temperature for each site 
+#returns max temperature of every day from 1950-2024
+maxtemp_fagus_site <- data.frame(extract(maxtemp, fagus_coords, ncol=2))
+row.names(maxtemp_fagus_site) <- row.names(fagus_coords)
+write.csv(maxtemp_fagus_site, 'Data/e_obs/maxtempsitedata.csv')
+
+#for mean temp
+meantemp_fagus_site <- data.frame(extract(meantemp, fagus_coords, ncol=2))
+row.names(meantemp_fagus_site) <- row.names(fagus_coords)
+write.csv(meantemp_fagus_site, 'Data/e_obs/meantempsitedata.csv')
+
+#for relative humidity
+relhum_fagus_site <- data.frame(extract(relhum, fagus_coords, ncol=2))
+row.names(relhum_fagus_site) <- row.names(fagus_coords)
+write.csv(relhum_fagus_site, 'Data/e_obs/relhumsitedata.csv')
+
+#for precip
+precip_fagus_site <- data.frame(extract(precip, fagus_coords, ncol=2))
+row.names(precip_fagus_site) <- row.names(fagus_coords)
+write.csv(precip_fagus_site, 'Data/e_obs/precip.csv')
+
+#reading in the csvs with the climate data in
+maxtemp_fagus_sites <- read.csv("Data/e_obs/maxtempsitedata.csv", header=TRUE, sep=",", check.names=FALSE)
+meantemp_fagus_sites <- read.csv("Data/e_obs/meantempsitedata.csv", header=TRUE, sep=",", check.names=FALSE)
+relhum_fagus_sites <- read.csv("Data/e_obs/relhumsitedata.csv", header=TRUE, sep=",", check.names=FALSE)
+precip_fagus_sites <- read.csv("Data/e_obs/precip.csv", header=TRUE, sep=",", check.names=FALSE)
+
+#renaming the column with site IDs in to SiteID 
+colnames(maxtemp_fagus_sites)[1] = 'SiteID'
+colnames(meantemp_fagus_sites)[1] = 'SiteID'
+colnames(relhum_fagus_sites)[1] = 'SiteID'
+colnames(precip_fagus_sites)[1] = 'SiteID'
+
+#pivoting table from wide to long to make it more accessible for subsetting 
+library(tidyr)
+maxtemp_fagus_sites_long <- maxtemp_fagus_sites %>%
+  pivot_longer(cols=X1950.01.01:X2024.12.31,
+               names_to = "Date",
+               values_to = "MaxTemp")%>%
+               separate(Date, into = c("Year", "Month", "Day"), sep = "\\.")
+
+meantemp_fagus_sites_long <- meantemp_fagus_sites %>%
+  pivot_longer(cols=X1950.01.01:X2024.12.31,
+               names_to = "Date",
+               values_to = "MeanTemp")%>%
+  separate(Date, into = c("Year", "Month", "Day"), sep = "\\.")
+
+relhum_fagus_sites_long <- relhum_fagus_sites %>%
+  pivot_longer(cols=X1950.01.01:X2024.12.31,
+               names_to = "Date",
+               values_to = "Relhum")%>%
+  separate(Date, into = c("Year", "Month", "Day"), sep = "\\.")
+
+precip_fagus_sites_long <- precip_fagus_sites %>%
+  pivot_longer(cols=X1950.01.01:X2024.12.31,
+               names_to = "Date",
+               values_to = "Precip")%>%
+  separate(Date, into = c("Year", "Month", "Day"), sep = "\\.")
+
+#subsetting summer months 
+months <- c("04", "05", "06", "07", "08")
+maxtemp_fagus_summer <- data.frame()
+library(dplyr)
+for(i in 1:length(months)){
+  subset <- maxtemp_fagus_sites_long %>% 
+    filter(Month %in% months[i])
+  maxtemp_fagus_summer <- rbind(maxtemp_fagus_summer, subset)
+}
+
+meantemp_fagus_summer <- data.frame()
+for(i in 1:length(months)){
+  subset <- meantemp_fagus_sites_long %>% 
+    filter(Month == months[i])
+  meantemp_fagus_summer <- rbind(meantemp_fagus_summer, subset)
+}
+
+relhum_fagus_summer <- data.frame()
+for(i in 1:length(months)){
+  subset <- relhum_fagus_sites_long %>% 
+    filter(Month == months[i])
+  relhum_fagus_summer <- rbind(relhum_fagus_summer, subset)
+}
+
+precip_fagus_summer <- data.frame()
+for(i in 1:length(months)){
+  subset <- precip_fagus_sites_long %>% 
+    filter(Month == months[i])
+  precip_fagus_summer <- rbind(precip_fagus_summer, subset)
+}
+
+#averaging variables for each year at each site 
+years <- as.character(unique(maxtemp_fagus_summer$Year))
+sites <- as.character(unique(maxtemp_fagus_summer$SiteID))
+
+avg_maxtemp_fagus <- data.frame()
+  
+for(i in 1:length(sites)){
+  subset <- maxtemp_fagus_summer %>%
+    filter(SiteID == sites[i])
+  for(n in 1:length(years)){
+  subset_year <- subset %>%
+    filter(Year %in% years[n])
+  avg_maxtemp <- mean(subset_year$MaxTemp)
+  df <- data.frame(SiteID=sites[i], Year=years[n], Avg_maxtemp=avg_maxtemp)
+  avg_maxtemp_fagus <- rbind(avg_maxtemp_fagus, df)
+}}
+
+avg_meantemp_fagus <- data.frame()
+
+for(i in 1:length(sites)){
+  subset <- meantemp_fagus_summer %>%
+    filter(SiteID == sites[i])
+  for(n in 1:length(years)){
+    subset_year <- subset %>%
+      filter(Year %in% years[n])
+    avg_meantemp <- mean(subset_year$MeanTemp)
+    df <- data.frame(SiteID=sites[i], Year=years[n], Avg_meantemp=avg_meantemp)
+    avg_meantemp_fagus <- rbind(avg_meantemp_fagus, df)
+  }}
+
+avg_precip_fagus <- data.frame()
+
+for(i in 1:length(sites)){
+  subset <- precip_fagus_summer %>%
+    filter(SiteID == sites[i])
+  for(n in 1:length(years)){
+    subset_year <- subset %>%
+      filter(Year %in% years[n])
+    avg_precip <- mean(subset_year$Precip)
+    df <- data.frame(SiteID=sites[i], Year=years[n], Avg_precip=avg_precip)
+    avg_precip_fagus <- rbind(avg_precip_fagus, df)
+  }}
+
+
+#calculating VPD for each day 
+#actual VPD = (RH*VPsat)/100
+#VPsat = 0.6108*exp(17.27*T/T+273.3)
+VPD_dataset <- relhum_fagus_summer
+VPD_dataset$MeanTemp <- meantemp_fagus_summer$MeanTemp
+
+VPD_dataset$SVP <- 0.6108*exp((17.27*VPD_dataset$MeanTemp)/(VPD_dataset$MeanTemp+237.3))
+VPD_dataset$AVP <- ((VPD_dataset$Relhum/100)*VPD_dataset$SVP)
+VPD_dataset$VPD <- VPD_dataset$SVP-VPD_dataset$AVP
+
+#calculating average VPD 
+avg_VPD_fagus <- data.frame()
+
+for(i in 1:length(sites)){
+  subset <- VPD_dataset %>%
+    filter(SiteID == sites[i])
+  for(n in 1:length(years)){
+    subset_year <- subset %>%
+      filter(Year %in% years[n])
+    avg_VPD <- mean(na.omit(subset_year$VPD))
+    df <- data.frame(SiteID=sites[i], Year=years[n], Avg_VPD=avg_VPD)
+    avg_VPD_fagus <- rbind(avg_VPD_fagus, df)
+  }}
+
+#creating one big dataset with all average climate variables in               
+avg_fagus_climate <- avg_maxtemp_fagus
+avg_fagus_climate$Avg_meantemp <- avg_meantemp_fagus$Avg_meantemp
+avg_fagus_climate$Avg_precip <- avg_precip_fagus$Avg_precip
+avg_fagus_climate$Avg_VPD <- avg_VPD_fagus$Avg_VPD
+
+#need to get rid of X at start of year 
+avg_fagus_climate$Year <- gsub("X", "", avg_fagus_climate$Year)
+
+#merging average climate data into fagus sylv tree ring width dataset
+climate_dataset_fagus <- merge(fagus_sylv_age_df, avg_fagus_climate, by=c("SiteID", "Year"))
+write.csv(climate_dataset_fagus, "Data/e_obs/climate_dataset_fagus.csv")
+
+ggplot(data=climate_dataset_fagus, aes(y=Avg_meantemp, x=Year, colour=Country))+
+  geom_line()
+
+#wrangling quercus petraea climate data
+#####
+library(dplyr)
+quercus_sites_clim <- site_data %>% 
+  filter(Species == "Quercus petraea")
+quercus_sites_latlon <- quercus_sites_clim[,c(1,6,5)]
+
+#creating a dataframe with the coordinates in 
+write.csv(quercus_sites_latlon, "Data/e_obs/quercus_sites_coords.csv")
+
+#reading the coordinates in 
+quercus_coords <- read.csv("Data/e_obs/quercus_sites_coords.csv", header=TRUE, row.names="SiteID", sep=",")
+quercus_coords <- quercus_coords[,-1]
+
+#creating example map to visualise where sites are 
+plot(relhum$X2024.06.01)
+points(quercus_coords,pch=16,col="black")
+
+#extracting max temperature for each site 
+#returns max temperature of every day from 1950-2024
+maxtemp_quercus_site <- data.frame(extract(maxtemp, quercus_coords, ncol=2))
+row.names(maxtemp_quercus_site) <- row.names(quercus_coords)
+write.csv(maxtemp_quercus_site, 'Data/e_obs/maxtempsitedata_quercus.csv')
+
+#for mean temp
+meantemp_quercus_site <- data.frame(extract(meantemp, quercus_coords, ncol=2))
+row.names(meantemp_quercus_site) <- row.names(quercus_coords)
+write.csv(meantemp_quercus_site, 'Data/e_obs/meantempsitedata_quercus.csv')
+
+#for relative humidity
+relhum_quercus_site <- data.frame(extract(relhum, quercus_coords, ncol=2))
+row.names(relhum_quercus_site) <- row.names(quercus_coords)
+write.csv(relhum_quercus_site, 'Data/e_obs/relhumsitedata_quercus.csv')
+
+#for precip
+precip_quercus_site <- data.frame(extract(precip, quercus_coords, ncol=2))
+row.names(precip_quercus_site) <- row.names(quercus_coords)
+write.csv(precip_quercus_site, 'Data/e_obs/precip_quercus.csv')
+
+#reading in the csvs with the climate data in
+maxtemp_quercus_sites <- read.csv("Data/e_obs/maxtempsitedata_quercus.csv", header=TRUE, sep=",", check.names=FALSE)
+meantemp_quercus_sites <- read.csv("Data/e_obs/meantempsitedata_quercus.csv", header=TRUE, sep=",", check.names=FALSE)
+relhum_quercus_sites <- read.csv("Data/e_obs/relhumsitedata_quercus.csv", header=TRUE, sep=",", check.names=FALSE)
+precip_quercus_sites <- read.csv("Data/e_obs/precip_quercus.csv", header=TRUE, sep=",", check.names=FALSE)
+
+#renaming the column with site IDs in to SiteID 
+colnames(maxtemp_quercus_sites)[1] = 'SiteID'
+colnames(meantemp_quercus_sites)[1] = 'SiteID'
+colnames(relhum_quercus_sites)[1] = 'SiteID'
+colnames(precip_quercus_sites)[1] = 'SiteID'
+
+#pivoting table from wide to long to make it more accessible for subsetting 
+library(tidyr)
+maxtemp_quercus_sites_long <- maxtemp_quercus_sites %>%
+  pivot_longer(cols=X1950.01.01:X2024.12.31,
+               names_to = "Date",
+               values_to = "MaxTemp")%>%
+  separate(Date, into = c("Year", "Month", "Day"), sep = "\\.")
+
+meantemp_quercus_sites_long <- meantemp_quercus_sites %>%
+  pivot_longer(cols=X1950.01.01:X2024.12.31,
+               names_to = "Date",
+               values_to = "MeanTemp")%>%
+  separate(Date, into = c("Year", "Month", "Day"), sep = "\\.")
+
+relhum_quercus_sites_long <- relhum_quercus_sites %>%
+  pivot_longer(cols=X1950.01.01:X2024.12.31,
+               names_to = "Date",
+               values_to = "Relhum")%>%
+  separate(Date, into = c("Year", "Month", "Day"), sep = "\\.")
+
+precip_quercus_sites_long <- precip_quercus_sites %>%
+  pivot_longer(cols=X1950.01.01:X2024.12.31,
+               names_to = "Date",
+               values_to = "Precip")%>%
+  separate(Date, into = c("Year", "Month", "Day"), sep = "\\.")
+
+#subsetting summer months 
+months <- c("04", "05", "06", "07", "08")
+maxtemp_quercus_summer <- data.frame()
+for(i in 1:length(months)){
+  subset <- maxtemp_quercus_sites_long %>% 
+    filter(Month %in% months[i])
+  maxtemp_quercus_summer <- rbind(maxtemp_quercus_summer, subset)
+}
+
+meantemp_quercus_summer <- data.frame()
+for(i in 1:length(months)){
+  subset <- meantemp_quercus_sites_long %>% 
+    filter(Month == months[i])
+  meantemp_quercus_summer <- rbind(meantemp_quercus_summer, subset)
+}
+
+relhum_quercus_summer <- data.frame()
+for(i in 1:length(months)){
+  subset <- relhum_quercus_sites_long %>% 
+    filter(Month == months[i])
+  relhum_quercus_summer <- rbind(relhum_quercus_summer, subset)
+}
+
+precip_quercus_summer <- data.frame()
+for(i in 1:length(months)){
+  subset <- precip_quercus_sites_long %>% 
+    filter(Month == months[i])
+  precip_quercus_summer <- rbind(precip_quercus_summer, subset)
+}
+
+#averaging variables for each year at each site 
+years <- as.character(unique(maxtemp_quercus_summer$Year))
+sites <- as.character(unique(maxtemp_quercus_summer$SiteID))
+
+avg_maxtemp_quercus <- data.frame()
+
+for(i in 1:length(sites)){
+  subset <- maxtemp_quercus_summer %>%
+    filter(SiteID == sites[i])
+  for(n in 1:length(years)){
+    subset_year <- subset %>%
+      filter(Year %in% years[n])
+    avg_maxtemp <- mean(subset_year$MaxTemp)
+    df <- data.frame(SiteID=sites[i], Year=years[n], Avg_maxtemp=avg_maxtemp)
+    avg_maxtemp_quercus <- rbind(avg_maxtemp_quercus, df)
+  }}
+
+avg_meantemp_quercus <- data.frame()
+
+for(i in 1:length(sites)){
+  subset <- meantemp_quercus_summer %>%
+    filter(SiteID == sites[i])
+  for(n in 1:length(years)){
+    subset_year <- subset %>%
+      filter(Year %in% years[n])
+    avg_meantemp <- mean(subset_year$MeanTemp)
+    df <- data.frame(SiteID=sites[i], Year=years[n], Avg_meantemp=avg_meantemp)
+    avg_meantemp_quercus <- rbind(avg_meantemp_quercus, df)
+  }}
+
+avg_precip_quercus <- data.frame()
+
+for(i in 1:length(sites)){
+  subset <- precip_quercus_summer %>%
+    filter(SiteID == sites[i])
+  for(n in 1:length(years)){
+    subset_year <- subset %>%
+      filter(Year %in% years[n])
+    avg_precip <- mean(subset_year$Precip)
+    df <- data.frame(SiteID=sites[i], Year=years[n], Avg_precip=avg_precip)
+    avg_precip_quercus <- rbind(avg_precip_quercus, df)
+  }}
+
+
+#calculating VPD for each day 
+#actual VPD = (RH*VPsat)/100
+#VPsat = 0.6108*exp(17.27*T/T+273.3)
+VPD_dataset <- relhum_quercus_summer
+VPD_dataset$MeanTemp <- meantemp_quercus_summer$MeanTemp
+
+VPD_dataset$SVP <- 0.6108*exp((17.27*VPD_dataset$MeanTemp)/(VPD_dataset$MeanTemp+273.3))
+VPD_dataset$AVP <- ((VPD_dataset$Relhum/100)*VPD_dataset$SVP)
+VPD_dataset$VPD <- (VPD_dataset$SVP-VPD_dataset$AVP)
+
+#calculating average VPD 
+avg_VPD_quercus <- data.frame()
+
+for(i in 1:length(sites)){
+  subset <- VPD_dataset %>%
+    filter(SiteID == sites[i])
+  for(n in 1:length(years)){
+    subset_year <- subset %>%
+      filter(Year %in% years[n])
+    avg_VPD <- mean(na.omit(subset_year$VPD))
+    df <- data.frame(SiteID=sites[i], Year=years[n], Avg_VPD=avg_VPD)
+    avg_VPD_quercus <- rbind(avg_VPD_quercus, df)
+  }}
+
+#creating one big dataset with all average climate variables in               
+avg_quercus_climate <- avg_maxtemp_quercus
+avg_quercus_climate$Avg_meantemp <- avg_meantemp_quercus$Avg_meantemp
+avg_quercus_climate$Avg_precip <- avg_precip_quercus$Avg_precip
+avg_quercus_climate$Avg_VPD <- avg_VPD_quercus$Avg_VPD
+
+#need to get rid of X at start of year 
+avg_quercus_climate$Year <- gsub("X", "", avg_quercus_climate$Year)
+
+#subsetting quercus data
 #####
 library(dplyr)
 quercus_pet_dat <- compl_data %>% 
@@ -58,246 +472,82 @@ quercus_pet_dat <- compl_data %>%
 #calculating age 
 #####
 tree_id_list_3 <- c()
-n <- as.numeric(1)
+n <- 1
 tree_id_list_3 <- unique(quercus_pet_dat$TreeID)
 
 quercus_pet_age_df <- data.frame()
 
 #creating an age variable
+#This is sometimes a few years out from the actual age listed in the dataset...
 for (n in 1:length(tree_id_list_3)){
   subset <- quercus_pet_dat %>% 
     filter(TreeID == tree_id_list_3[n])
   subset$Age <- 1:nrow(subset)
   quercus_pet_age_df <- rbind(quercus_pet_age_df, subset)
 }
+
+#merging average climate data into quercus pet tree ring width dataset
+climate_dataset_quercus <- merge(quercus_pet_age_df, avg_quercus_climate, by=c("SiteID", "Year"))
+write.csv(climate_dataset_quercus, "Data/e_obs/climate_dataset_quercus.csv")
+
+#checking spain temp due to looking a little odd
+
+#just extracting Spain 
 #####
-
-#climate data wrangling 
-######---
-#downloaded from Copernicus Climate Data Store on 03/05/2026 at 11:00 
-#ensemble mean, maximum temperature, across whole time period
-#downloaded from Copernicus Climate Data Store on 19/05/2026 at 14:00
-#ensemble mean, rel humidity, across whole time period
-library(sp)
-library(raster)
-library(ncdf4)
-library(here)
-library(ggplot2)
-
-#loading in E-obs maxtemp data
-maxtemp <- brick(here::here("Data/e_obs/maxtempdata.nc"))
-meantemp <- brick(here::here("Data/e_obs/meantempdata.nc"))
-relhum <- brick(here::here("Data/e_obs/relhumdata.nc"))
-
-##climate data for fagus sylvatica, VPD, mean and max temp; precipitation will be added later
-#####
-#subsetting fagus sylvatica sites
 library(dplyr)
-fagus_sites_clim <- site_data %>% 
-  filter(Species == "Fagus sylvatica")
-fagus_sites_latlon_only <- fagus_sites_clim[,c(6,5)]
+spain_sites_latlon <- fagus_sites_clim[c(17,18),c(1,6,5)]
 
-#creating example map to visualise where sites are 
-plot(relhum$X2000.01.16)
-points(fagus_sites_latlon_only,pch=16)
+write.csv(spain_sites_latlon, "Data/e_obs/spain_sites_coords.csv")
 
-#extracting max temperature for each site 
-#returns max temperature of every day from 1950-2024
-maxtemp_fagus_sites <- data.frame(extract(maxtemp,fagus_sites_latlon_only, ncol="2"))
-write.csv(maxtemp_fagus_sites, 'data/e_obs/maxtempsitedata.csv')
-#for mean temp
-meantemp_fagus_sites <- data.frame(extract(meantemp,fagus_sites_latlon_only, ncol="2"))
-write.csv(meantemp_fagus_sites, 'data/e_obs/meantempsitedata.csv')
-#for relative humidity
-relhum_fagus_sites <- data.frame(extract(relhum,fagus_sites_latlon_only, ncol="2"))
-write.csv(relhum_fagus_sites, 'data/e_obs/relhumsitedata.csv')
+spain_coords <- read.csv("Data/e_obs/spain_sites_coords.csv", header=TRUE, row.names="SiteID", sep=",")
+spain_coords <- spain_coords[,-1]
 
-###subsetting growing season of each year 
-#accounting for leap years 
-days <- c(365, 365, 366, 365)
-days2 <- rep(days,20)
+meantemp_spain_site <- data.frame(extract(meantemp, spain_coords, method='simple'))
+row.names(meantemp_spain_site) <- row.names(spain_coords)
+meantemp_spain_site$SiteID <- row.names(meantemp_spain_site)
 
-#75 years so 75 summers of temperature to extract
-df_names <- 1:75
-df_names2 <- rep(c("df"), 75)
-dfnames <- as.list(paste(df_names2, df_names, sep="_"))
-dfnames_meantemp <- as.list(paste(df_names2, df_names, sep="_"))
-dfnames_relhum <- as.list(paste(df_names2, df_names, sep="_"))
+library(tidyr)
+meantemp_spains_sites_long <- meantemp_spain_site %>%
+  pivot_longer(cols=X1950.01.01:X2024.12.31,
+               names_to = "Date",
+               values_to = "MeanTemp")%>%
+  separate(Date, into = c("Year", "Month", "Day"), sep = "\\.")
 
-#basing on study by Hurdebise et al looking at affect of increasing temp over 18yr period on growing season of F. sylvatica 
-#beginning of range of carbon uptake increase start day and end of range of carbon uptake decrease end day.
-dayname <- 48:299
+sites <- as.character(unique(meantemp_spains_sites_long$SiteID))
+years <- as.character(unique(meantemp_spains_sites_long$Year))
 
-s <- 0
-e <- 0
-
-for(i in 1:length(dfnames)){
-  dfnames[[i]] <- matrix(data=NA, nrow=24, ncol=251)
-  dfnames[[i]] <- maxtemp_fagus_sites[,(48+s):(299+e)]
-  colnames(dfnames[[i]]) <- dayname
-  s <- s+days2[i]
-  e <- e+days2[i]
-} 
-
-s <- 0
-e <- 0
-
-for(i in 1:length(dfnames_meantemp)){
-  dfnames_meantemp[[i]] <- matrix(data=NA, nrow=24, ncol=251)
-  dfnames_meantemp[[i]] <- meantemp_fagus_sites[,(48+s):(299+e)]
-  colnames(dfnames_meantemp[[i]]) <- dayname
-  s <- s+days2[i]
-  e <- e+days2[i]
-} 
-
-s <- 0
-e <- 0
-
-for(i in 1:length(dfnames_relhum)){
-  dfnames_relhum[[i]] <- matrix(data=NA, nrow=24, ncol=251)
-  dfnames_relhum[[i]] <- relhum_fagus_sites[,(48+s):(299+e)]
-  colnames(dfnames_relhum[[i]]) <- dayname
-  s <- s+days2[i]
-  e <- e+days2[i]
-} 
-
-#freeing up space by removing huge dataset once finished with
-rm(maxtemp_fagus_sites)
-rm(meantemp_fagus_sites)
-rm(relhum_fagus_sites)
-
-#binding all year dfs together into one big df to calculate avg max summer temps of each year
-bigsummdf <- plyr::ldply(dfnames, data.frame, .id=NULL)
-bigsummdf_meantemp <- plyr::ldply(dfnames_meantemp, data.frame, .id=NULL)
-bigsummdf_relhum <- plyr::ldply(dfnames_relhum, data.frame, .id=NULL)
-
-#calculating VPD for each day 
-#actual VPD = (RH*VPsat)/100
-#VPsat = 0.6108*exp(17.27*T/T+273.3)
-VPDdf <- matrix(ncol=252, nrow=1800)
-
-r <- 1:1800
-c <- 1:252
-
-#calculating VPD for each day 
-for(i in 1:length(r)){
-  for(n in 1:length(c)){
-    VPDdf[r[i],c[n]] <- (bigsummdf_relhum[r[i],c[n]] * (0.6108*exp((17.27*bigsummdf_meantemp[r[i],c[n]])/(bigsummdf_meantemp[r[i],c[n]]+237.3))))/100
-  }
-}
-
-#calculating average max growing season for each site each year
-#each row represents the max temperature of every day of summer of each year 
-avgtempnames <- rep("avg", )
-years <- rep(1950:2024,each=24)
-sitenames2 <- fagus_sites_clim$SiteID
-fagus_site_avgmxsummtemps <- as.list(paste(avgtempnames, years, sitenames2, sep="_"))
-fagus_site_avgmeansummtemps <- as.list(paste(avgtempnames, years, sitenames2, sep="_"))
-fagus_site_avgrelsummhum <- as.list(paste(avgtempnames, years, sitenames2, sep="_"))
-
-for(i in 1:length(fagus_site_avgmxsummtemps)){
-  fagus_site_avgmxsummtemps[[i]] <- sum(bigsummdf[i,])/252
-}
-
-#for mean temp
-for(i in 1:length(fagus_site_avgmeansummtemps)){
-  fagus_site_avgmeansummtemps[[i]] <- sum(bigsummdf_meantemp[i,])/252
-}
-
-#for VPD
-for(i in 1:length(fagus_site_avgVPD)){
-  fagus_site_avgrelsummhum[[i]] <- sum(VPDdf[i,])/252
-}
-
-#creating df with max summer temperature for each site for each year 
-fagus_site_avgmxsummtemps_char <- as.character(fagus_site_avgmxsummtemps)
-avg_temp_df <- data.frame(years, sitenames2, fagus_site_avgmxsummtemps_char, fagus_site_avgmeansummtemps, fagus_site_avgVPD)
-colnames(avg_temp_df) <- c("Year", "SiteID", "Avg_max_summ_temp", "Avg_mean_summ_temp", "Avg_VPD")
-
-#duplicate values for sites that are really close together (psuedoreplication???)
-
-#adding averages to Fagus sylv data
-fagus_sylv_dat_maxtemp <- merge(fagus_sylv_age_df, avg_temp_df, 
-                                by=c("SiteID", "Year"))
-
-write.csv(fagus_sylv_dat_maxtemp, 'data/e_obs/complete_fagus_data.csv')
-
-#big reduction in rows is due to years not included in climate data
-##original dataset has 30058 measurements pre 1950 that aren't included in final dataset due to lack of climate data
-
-#####
-
-
-###FOR LATER DATE; to be updated later.
-##climate data for Quercus petraea 
-#####
-#subsetting Quercus petraea sites
+months <- c("04","05","06","07","08")
+meantemp_spain_summer <- data.frame()
 library(dplyr)
-quercus_petraea_clim <- site_data %>% 
-  filter(Species == "Quercus petraea")
-quercus_petraea_sites_latlon_only <- quercus_petraea_clim[,c(6,5)]
-
-#creating example map to visualise where sites are 
-plot(maxtemp$X2000.01.16)
-points(quercus_petraea_sites_latlon_only,pch=16)
-
-#extracting max temperature for each site 
-#returns max temperature of every day from 1950-2024
-maxtemp_quercus_petraea_sites <- data.frame(extract(maxtemp,quercus_petraea_sites_latlon_only, ncol="2"))
-write.csv(maxtemp_quercus_petraea_sites, 'data/e_obs/maxtempsitedata_quercus_petraea.csv')
-
-###subsetting summer of each year 
-#accounting for leap years 
-days <- c(365, 365, 366, 365)
-days2 <- rep(days,20)
-
-#75 years so 75 summers of temperature to extract
-df_names_quercus_petraea <- 1:75
-df_names2_quercus_petraea <- rep(c("df"), 75)
-dfnames_quercus_petraea <- as.list(paste(df_names2, df_names, sep="_"))
-
-#will be pulling out days 152 (1st May) to day 243 (31st August) of each year
-dayname <- 152:243
-
-s <- 0
-e <- 0
-
-for(i in 1:length(dfnames_quercus_petraea)){
-  dfnames_quercus_petraea[[i]] <- matrix(data=NA, nrow=24, ncol=92)
-  dfnames_quercus_petraea[[i]] <- maxtemp_quercus_petraea_sites[,(152+s):(243+e)]
-  colnames(dfnames_quercus_petraea[[i]]) <- dayname
-  s <- s+days2[i]
-  e <- e+days2[i]
-} 
-
-#freeing up space by removing huge dataset once finished with
-rm(maxtemp_quercus_petraea_sites)
-
-#binding all year dfs together into one big df to calculate avg max summer temps of each year
-bigsummdf_quercus_petraea <- plyr::ldply(dfnames_quercus_petraea, data.frame, .id=NULL)
-
-#calculating average max summer temperature for each site each year
-#each row represents the max temperature of every day of summer of each year 
-avgtempnames <- rep("avg", )
-years <- rep(1950:2024,each=24)
-sitenames2_quercus_petraea <- quercus_petraea_clim$SiteID
-quercus_petraea_site_avgmxsummtemps <- as.list(paste(avgtempnames, years, sitenames2_quercus_petraea, sep="_"))
-
-for(i in 1:length(quercus_petraea_site_avgmxsummtemps)){
-  quercus_petraea_site_avgmxsummtemps[[i]] <- sum(bigsummdf_quercus_petraea[i,])/93
+for(i in 1:length(months)){
+  subset <- meantemp_spains_sites_long %>% 
+    filter(Month == months[i])
+  meantemp_spain_summer <- rbind(meantemp_spain_summer, subset)
 }
 
-#creating df with max summer temperature for each site for each year 
-quercus_petraea_site_avgmxsummtemps_char <- as.character(quercus_petraea_site_avgmxsummtemps)
-avg_temp_df_quercus_petraea <- data.frame(years, sitenames2, quercus_petraea_site_avgmxsummtemps_char)
-colnames(avg_temp_df_quercus_petraea) <- c("Year", "SiteID", "Avg_max_summ_temp")
+avg_meantemp_spain<-data.frame()
 
-#adding averages to Quercus pet data
-#for some reason doesn't like this code??????
-quercus_petraea_dat_maxtemp <- merge(quercus_pet_age_df, avg_temp_df_quercus_petraea,
-                                     by=c("SiteID", "Year"))
+for(i in 1:length(sites)){
+  subset <- meantemp_spains_sites_long %>%
+    filter(SiteID == sites[i])
+  for(n in 1:length(years)){
+    subset_year <- subset %>%
+      filter(Year == years[n])
+    avg_meantemp <- mean(subset_year$MeanTemp)
+    df <- data.frame(SiteID=sites[i], Year=years[n], Avg_meantemp=avg_meantemp)
+    avg_meantemp_spain <- rbind(avg_meantemp_spain, df)
+  }}
 
-write.csv(quercus_petraea_dat_maxtemp, 'data/e_obs/complete_quercus_petraea_data.csv')
+year <- c("X1950","X1960","X1970","X1980","X1990","X2000","X2010","X2020")
 
+small_df <- data.frame()
+for(i in 1:length(year)){
+  subset <- avg_meantemp_spain%>% 
+    filter(Year==year[i])
+  small_df <- rbind(small_df, subset)
+}
+
+plot(meantemp$X2024.06.01)
+points(spain_coords,pch=16,col="black")
 #####
 
