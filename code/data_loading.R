@@ -490,8 +490,13 @@ for (n in 1:length(tree_id_list_3)){
 climate_dataset_quercus <- merge(quercus_pet_age_df, avg_quercus_climate, by=c("SiteID", "Year"))
 write.csv(climate_dataset_quercus, "Data/e_obs/climate_dataset_quercus.csv")
 
-#checking spain temp due to looking a little odd
 
+
+
+
+
+
+#checking spain temp in fagus dataset due to looking a little odd
 #just extracting Spain 
 #####
 library(dplyr)
