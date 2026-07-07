@@ -54,9 +54,6 @@ for (n in 1:length(tree_id_list_2)){
   fagus_sylv_age_df <- rbind(fagus_sylv_age_df, subset)
 }
 
-ggplot(aes(y=Ring.width, x=Age, col=SiteID), data=fagus_sylv_age_df)+
-  geom_line()+
-  facet_wrap(vars(SiteID))
 #####
 
 #climate data wrangling 
@@ -96,13 +93,10 @@ write.csv(fagus_sites_latlon, "Data/e_obs/fagus_sites_coords.csv")
 #reading the coordinates in 
 fagus_coords <- read.csv("Data/e_obs/fagus_sites_coords.csv", header=TRUE, row.names="SiteID", sep=",")
 fagus_coords <- fagus_coords[,-1]
-quercus_coords <- read.csv("Data/e_obs/quercus_sites_coords.csv", header=TRUE, row.names="SiteID", sep=",")
-quercus_coords <- quercus_coords[,-1]
 
 #creating example map to visualise where sites are 
 plot(relhum$X2024.06.01)
 points(fagus_coords,pch=16,col="red")
-points(quercus_coords,pch=16,col="black")
 
 #extracting max temperature for each site 
 #returns max temperature of every day from 1950-2024
@@ -238,9 +232,9 @@ for(i in 1:length(sites)){
   }}
 
 
-#calculating VPD for each day 
+#calculating VPD of the air for each day 
 #actual VPD = (RH*VPsat)/100
-#VPsat = 0.6108*exp(17.27*T/T+273.3)
+#VPsat = 0.6108*exp(17.27*T/T+237.3)
 VPD_dataset <- relhum_fagus_summer
 VPD_dataset$MeanTemp <- meantemp_fagus_summer$MeanTemp
 
@@ -431,11 +425,11 @@ for(i in 1:length(sites)){
 
 #calculating VPD for each day 
 #actual VPD = (RH*VPsat)/100
-#VPsat = 0.6108*exp(17.27*T/T+273.3)
+#VPsat = 0.6108*exp(17.27*T/T+237.3)
 VPD_dataset <- relhum_quercus_summer
 VPD_dataset$MeanTemp <- meantemp_quercus_summer$MeanTemp
 
-VPD_dataset$SVP <- 0.6108*exp((17.27*VPD_dataset$MeanTemp)/(VPD_dataset$MeanTemp+273.3))
+VPD_dataset$SVP <- 0.6108*exp((17.27*VPD_dataset$MeanTemp)/(VPD_dataset$MeanTemp+237.3))
 VPD_dataset$AVP <- ((VPD_dataset$Relhum/100)*VPD_dataset$SVP)
 VPD_dataset$VPD <- (VPD_dataset$SVP-VPD_dataset$AVP)
 
@@ -490,11 +484,29 @@ for (n in 1:length(tree_id_list_3)){
 climate_dataset_quercus <- merge(quercus_pet_age_df, avg_quercus_climate, by=c("SiteID", "Year"))
 write.csv(climate_dataset_quercus, "Data/e_obs/climate_dataset_quercus.csv")
 
+#including only data from trees ranked as A
+tree_data <- read.csv("Data/gentree_data/tree.csv")
+fagus <- read.csv("Data/e_obs/climate_dataset_fagus.csv")
+quercus <- read.csv("Data/e_obs/climate_dataset_quercus.csv")
 
+library(dplyr)
+#filtering so only trees that have rank of A 
+a_rank <- tree_data %>%
+  filter(Crossdating %in% "A")
 
+#creating a list of names of trees ranked A 
+a_trees <- as.list(unique(a_rank$TreeID))
 
+#subsetting fagus climate dataset so only includes observations from trees ranked A 
+fagus_rank_A <- fagus %>% 
+  filter(TreeID %in% a_trees)
 
+#subsetting quercus climate dataset so only includes observations from trees ranked A
+quercus_rank_A <- quercus %>% 
+  filter(TreeID %in% a_trees)
 
+write.csv(fagus_rank_A, "Data/e_obs/climate_dataset_fagus.csv")
+write.csv(quercus_rank_A, "Data/e_obs/climate_dataset_quercus.csv")
 
 #checking spain temp in fagus dataset due to looking a little odd
 #just extracting Spain 
