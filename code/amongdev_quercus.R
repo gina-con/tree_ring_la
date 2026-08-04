@@ -1,8 +1,4 @@
-library(glmmTMB)
-library(splines)
-
-#climate plots
-
+#for more detailed annotation, see amongdev_fagus
 library(glmmTMB)
 library(splines)
 library(dplyr)

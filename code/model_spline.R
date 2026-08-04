@@ -26,7 +26,7 @@ scaled_fagus_dataset$Scaled_Age <- scale(scaled_fagus_dataset$Age)
 
 #centering year so that intercept is median year 
 #intercept is -1.5 because number of years is odd?? should intercept be 0? 
-scaled_fagus_dataset$Centred_year <- as.numeric(as.character(scaled_fagus_dataset$Year)) - median(as.numeric(as.character(scaled_fagus_dataset$Year)))
+scaled_fagus_dataset$Centred_year <- as.numeric(scaled_fagus_dataset$Year) - median(as.numeric(scaled_fagus_dataset$Year))
 
 #model 
 #instead of fitting a spline to age, which doesn't perform well as each tree has a different 

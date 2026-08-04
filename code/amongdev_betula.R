@@ -1,3 +1,4 @@
+#for more detailed annotation, see amongdev_fagus
 library(dplyr)
 #mean centring climate data and calculating quadratics
 #####
