@@ -7,17 +7,16 @@ site_data <- read.csv("data/gentree_data/site.csv")
 tree_data <- read.csv("data/gentree_data/tree.csv")
 
 #exploring data 
-head(site_data)
 #contains metadata on each site 
-head(tree_data)
+head(site_data)
 #contains tree, lat and long, length, pith, age, dbh, height, density
-#metadata surrounding tree 
+head(tree_data)
+#contains tree, year and ring width
 head(tree_ring_data)
 unique(tree_ring_data$Species)
-#contains tree, year and ring width
 #####
 
-#extracting elevation data and latitude data from site dataframe and adding to tree ring dataframe
+#extracting elevation data and latitude data from site.csv dataframe and adding to tree ring dataframe
 #####
 library(dplyr)
 elevdata <- data.frame(site_data$SiteID, site_data$Elevation)
@@ -66,8 +65,6 @@ for (n in 1:length(tree_id_list_2)){
 #ensemble mean for precipitation amount 
 library(sp)
 library(raster)
-library(ncdf4) 
-library(here)
 library(ggplot2)
 
 #loading in E-obs maxtemp data
@@ -157,7 +154,7 @@ precip_fagus_sites_long <- precip_fagus_sites %>%
                values_to = "Precip")%>%
   separate(Date, into = c("Year", "Month", "Day"), sep = "\\.")
 
-#subsetting summer months 
+#subsetting spring-summer months 
 months <- c("04", "05", "06", "07", "08")
 maxtemp_fagus_summer <- data.frame()
 library(dplyr)
@@ -200,11 +197,12 @@ for(i in 1:length(sites)){
   for(n in 1:length(years)){
   subset_year <- subset %>%
     filter(Year %in% years[n])
-  avg_maxtemp <- mean(subset_year$MaxTemp)
-  df <- data.frame(SiteID=sites[i], Year=years[n], Avg_maxtemp=avg_maxtemp)
-  avg_maxtemp_fagus <- rbind(avg_maxtemp_fagus, df)
+  avg_maxtemp <- mean(subset_year$MaxTemp)#calculating average max temperature each year
+  df <- data.frame(SiteID=sites[i], Year=years[n], Avg_maxtemp=avg_maxtemp)#creating dataframe with site id, year and average max temp
+  avg_maxtemp_fagus <- rbind(avg_maxtemp_fagus, df)#binding into dataframe containing averages
 }}
 
+#repeating for mean temp
 avg_meantemp_fagus <- data.frame()
 
 for(i in 1:length(sites)){
@@ -521,10 +519,9 @@ betula_coords <- read.csv("Data/e_obs/betula_sites_coords.csv", header=TRUE, row
 betula_coords <- betula_coords[,-1]
 
 #creating example map to visualise where sites are 
-par(mfrow=c(1,1))
-plot(relhum$X2024.06.01, legend=FALSE)
-points(betula_coords,pch=16,col="violet")
-points(quercus_coords,pch=16,col="black")
+plot(meantemp$X2024.06.01)
+points(betula_coords,pch=17,col="blue")
+points(quercus_coords,pch=15,col="black")
 points(fagus_coords, pch=16, col="red")
 
 
@@ -750,7 +747,7 @@ betula_coords <- read.csv("Data/e_obs/betula_sites_coords.csv", header=TRUE, row
 #removing the sites excluded from analysis
 betula_coords <- betula_coords[-c(21, 16, 17),-1]
 
-plot(relhum$X2024.06.01, legend=FALSE)
+plot(meantemp$X2024.06.01, col="darkolivegreen3", legend=FALSE)
 points(fagus_coords,pch=15,col="red")
 points(quercus_coords, pch=16, col="black")
 points(betula_coords, pch=17, col="blue")
@@ -814,3 +811,31 @@ for(i in 1:length(year)){
 plot(meantemp$X2024.06.01)
 points(spain_coords,pch=16,col="black")
 #####
+
+##age structure of each dataset 
+#loading in data
+fagus <- read.csv("Data/e_obs/climate_dataset_fagus.csv")
+quercus <- read.csv("Data/e_obs/climate_dataset_quercus.csv")
+betula <- read.csv("Data/e_obs/climate_dataset_betula.csv")
+#removing relevant sites
+fagus_red <- fagus %>% 
+  filter(Country != 'Spain')
+fagus_red <- fagus_red[,-1]
+quercus_red <- quercus %>%
+  filter(SiteID != "ITQP09") %>%
+  filter(SiteID != "ITQP10")
+quercus_red <- quercus_red[,-1]
+betula_red <- betula %>%
+  filter(SiteID != "SEBP18") %>%
+  filter(SiteID != "SEBP17") %>%
+  filter(SiteID != "GBBP14")
+#merging into one data frame
+climate_data <- rbind(fagus_red, quercus_red)
+climate_data <- rbind(climate_data, betula_red)
+#plotting age figure 
+ggplot(data=climate_data, aes(x=Species, y=Age, colour=Species))+
+  geom_boxplot()+
+  theme_cowplot()+
+  theme(axis.text.x=element_text(size=10, face = "italic"),
+        legend.position = "none")
+
