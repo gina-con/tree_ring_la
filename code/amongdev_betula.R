@@ -9,7 +9,7 @@ betula_dataset <- read.csv("Data/e_obs/climate_dataset_betula.csv")
 
 mean_centred_betula_dataset <- data.frame()
 betula_populations <- unique(betula_dataset$SiteID)
-betula_populations[21]
+betula_populations[13]
 betula_populations <- betula_populations[-c(13,20,21)]
 
 #mean centering to calculate within and among/between site effects
@@ -69,6 +69,16 @@ mean_centred_betula_dataset$Avg_VPDQuad <- mean_centred_betula_dataset$Avg_VPD^2
 mean_centred_betula_dataset$Avg_precipQuad<- mean_centred_betula_dataset$Avg_precip^2
 mean_centred_betula_dataset$Avg_meantempQuad<- mean_centred_betula_dataset$Avg_meantemp^2
 
+#checking for correlation between climate variables
+cor.test(mean_centred_betula_dataset$Avg_meantemp, mean_centred_betula_dataset$Avg_VPD)
+cor.test(mean_centred_betula_dataset$Avg_precip, mean_centred_betula_dataset$Avg_VPD)
+cor.test(mean_centred_betula_dataset$Avg_meantemp, mean_centred_betula_dataset$Avg_precip)
+cor.test(mean_centred_betula_dataset$WithinTemp, mean_centred_betula_dataset$WithinVPD)
+cor.test(mean_centred_betula_dataset$AmongTemp, mean_centred_betula_dataset$AmongVPD)
+cor.test(mean_centred_betula_dataset$AmongTemp, mean_centred_betula_dataset$AmongPrecip)
+cor.test(mean_centred_betula_dataset$WithinTemp, mean_centred_betula_dataset$WithinPrecip)
+cor.test(mean_centred_betula_dataset$AmongPrecip, mean_centred_betula_dataset$AmongVPD)
+cor.test(mean_centred_betula_dataset$WithinPrecip, mean_centred_betula_dataset$WithinVPD)
 
 #null model with no climate drivers 
 null_model_betula <- glmmTMB(log1p(Ring.width)~Latitude+(1|Year)+(1|SiteID)+
@@ -77,182 +87,300 @@ null_model_betula <- glmmTMB(log1p(Ring.width)~Latitude+(1|Year)+(1|SiteID)+
                                 (1|Centred_year:SiteID),
                               data=mean_centred_betula_dataset)
 
-#models without quadratics 
-no_quads_betula <- glmmTMB(log1p(Ring.width)~AmongTempDev+WithinTemp+
-                              AmongVPDDev+WithinVPD+
-                              AmongPrecipDev+WithinPrecip+
-                              (WithinTemp*AmongTempDev)+
-                              Latitude+(1|Year)+(1|SiteID)+
-                              ns(Centred_year, df=3)+
-                              (1+ns(Centred_year, df=3)|TreeID)+
-                              (1|Centred_year:SiteID),
-                            data=mean_centred_betula_dataset)
-#all variables, dropping temperature quadratic
-no_quadsTemp_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
-                                  AmongPrecipDevQuad+AmongVPDDevQuad+
-                                  WithinPrecip+WithinVPD+WithinTemp+
-                                  WithinPrecipQuad4+WithinVPDQuad4+
+#dropping quadratics to check assumption of optimum climate value
+no_quads_spat_betula <- glmmTMB(log1p(Ring.width)~AmongTempDev+WithinTemp+WithinTempQuad4+
+                                   AmongVPDDev+WithinVPD+WithinVPDQuad4+
+                                   AmongPrecipDev+WithinPrecip+WithinPrecipQuad4+
+                                   (WithinTemp*AmongTempDev)+
+                                  (WithinPrecip*AmongPrecipDev)+
+                                  (WithinVPD*AmongVPDDev)+
+                                   Latitude+(1|Year)+(1|SiteID)+
+                                   ns(Centred_year, df=3)+
+                                   (1+ns(Centred_year, df=3)|TreeID)+
+                                   (1|Centred_year:SiteID),
+                                 data=mean_centred_betula_dataset)
+#dropping temperature quadratic (spatial)
+no_quadsTemp_spat_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
+                                       AmongPrecipDevQuad+AmongVPDDevQuad+
+                                       WithinPrecip+WithinVPD+WithinTemp+
+                                       WithinPrecipQuad4+WithinVPDQuad4+WithinTempQuad4+
+                                       (AmongPrecipDev*WithinPrecip)+
+                                       (AmongVPDDev*WithinVPD)+
+                                       (AmongTempDev*WithinTemp)+
+                                       Latitude+
+                                       (1|Year)+(1|SiteID)+
+                                       ns(Centred_year, df=3)+
+                                       (1+ns(Centred_year, df=3)|TreeID)+
+                                       (1|Centred_year:SiteID),
+                                     data=mean_centred_betula_dataset)
+#dropping VPD quadratic (spatial)
+no_quadsVPD_spat_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
+                                      AmongPrecipDevQuad+AmongTempDevQuad+
+                                      WithinPrecip+WithinVPD+WithinTemp+
+                                      WithinPrecipQuad4+WithinTempQuad4+WithinVPDQuad4+
+                                      (AmongPrecipDev*WithinPrecip)+
+                                      (AmongVPDDev*WithinVPD)+
+                                      (AmongTempDev*WithinTemp)+
+                                      Latitude+
+                                      (1|Year)+(1|SiteID)+
+                                      ns(Centred_year, df=3)+
+                                      (1+ns(Centred_year, df=3)|TreeID)+
+                                      (1|Centred_year:SiteID),
+                                    data=mean_centred_betula_dataset)
+#dropping precipitation quadratic (spatial)
+no_quadsPrecip_spat_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
+                                         AmongVPDDevQuad+AmongTempDevQuad+
+                                         WithinPrecip+WithinVPD+WithinTemp+
+                                         WithinVPDQuad4+WithinTempQuad4+WithinPrecipQuad4+
+                                         (AmongPrecipDev*WithinPrecip)+
+                                         (AmongVPDDev*WithinVPD)+
+                                         (AmongTempDev*WithinTemp)+
+                                         Latitude+
+                                         (1|Year)+(1|SiteID)+
+                                         ns(Centred_year, df=3)+
+                                         (1+ns(Centred_year, df=3)|TreeID)+
+                                         (1|Centred_year:SiteID),
+                                       data=mean_centred_betula_dataset)
+
+
+#dropping quadratics to check assumption of optimum climate value (temporal)
+no_quads_temp_betula <- glmmTMB(log1p(Ring.width)~AmongTempDev+WithinTemp+AmongTempDevQuad+
+                                   AmongVPDDev+WithinVPD+AmongVPDDevQuad+
+                                   AmongPrecipDev+WithinPrecip+AmongPrecipDevQuad+
+                                   (WithinTemp*AmongTempDev)+
                                   (AmongPrecipDev*WithinPrecip)+
                                   (AmongVPDDev*WithinVPD)+
-                                  (AmongTempDev*WithinTemp)+
+                                   Latitude+(1|Year)+(1|SiteID)+
+                                   ns(Centred_year, df=3)+
+                                   (1+ns(Centred_year, df=3)|TreeID)+
+                                   (1|Centred_year:SiteID),
+                                 data=mean_centred_betula_dataset)
+#dropping temperature quadratic (temporal)
+no_quadsTemp_temp_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
+                                       AmongPrecipDevQuad+AmongVPDDevQuad+AmongTempDevQuad+
+                                       WithinPrecip+WithinVPD+WithinTemp+
+                                       WithinPrecipQuad4+WithinVPDQuad4+
+                                       (AmongPrecipDev*WithinPrecip)+
+                                       (AmongVPDDev*WithinVPD)+
+                                       (AmongTempDev*WithinTemp)+
+                                       Latitude+
+                                       (1|Year)+(1|SiteID)+
+                                       ns(Centred_year, df=3)+
+                                       (1+ns(Centred_year, df=3)|TreeID)+
+                                       (1|Centred_year:SiteID),
+                                     data=mean_centred_betula_dataset)
+#dropping VPD quadratic (temporal)
+no_quadsVPD_temp_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
+                                      AmongPrecipDevQuad+AmongTempDevQuad+AmongVPDDevQuad+
+                                      WithinPrecip+WithinVPD+WithinTemp+
+                                      WithinPrecipQuad4+WithinTempQuad4+
+                                      (AmongPrecipDev*WithinPrecip)+
+                                      (AmongVPDDev*WithinVPD)+
+                                      (AmongTempDev*WithinTemp)+
+                                      Latitude+
+                                      (1|Year)+(1|SiteID)+
+                                      ns(Centred_year, df=3)+
+                                      (1+ns(Centred_year, df=3)|TreeID)+
+                                      (1|Centred_year:SiteID),
+                                    data=mean_centred_betula_dataset)
+#dropping precipitation quadratic (temporal)
+no_quadsPrecip_temp_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
+                                         AmongVPDDevQuad+AmongTempDevQuad+AmongPrecipDevQuad+
+                                         WithinPrecip+WithinVPD+WithinTemp+
+                                         WithinVPDQuad4+WithinTempQuad4+
+                                         (AmongPrecipDev*WithinPrecip)+
+                                         (AmongVPDDev*WithinVPD)+
+                                         (AmongTempDev*WithinTemp)+
+                                         Latitude+
+                                         (1|Year)+(1|SiteID)+
+                                         ns(Centred_year, df=3)+
+                                         (1+ns(Centred_year, df=3)|TreeID)+
+                                         (1|Centred_year:SiteID),
+                                       data=mean_centred_betula_dataset)
+
+#global model to check splitting temporal and spatial adds value
+#took out within as well
+global_model_betula <- glmmTMB(log1p(Ring.width)~Avg_precip+Avg_meantemp+Avg_VPD+
+                                  Avg_precipQuad+Avg_meantempQuad+Avg_VPDQuad+
                                   Latitude+
                                   (1|Year)+(1|SiteID)+
                                   ns(Centred_year, df=3)+
                                   (1+ns(Centred_year, df=3)|TreeID)+
                                   (1|Centred_year:SiteID),
                                 data=mean_centred_betula_dataset)
-#all variables dropping VPD quadratic
-no_quadsVPD_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
-                                 AmongPrecipDevQuad+AmongTempDevQuad+
-                                 WithinPrecip+WithinVPD+WithinTemp+
-                                 WithinPrecipQuad4+WithinTempQuad4+
-                                 (AmongPrecipDev*WithinPrecip)+
-                                 (AmongVPDDev*WithinVPD)+
-                                 (AmongTempDev*WithinTemp)+
-                                 Latitude+
-                                 (1|Year)+(1|SiteID)+
-                                 ns(Centred_year, df=3)+
-                                 (1+ns(Centred_year, df=3)|TreeID)+
-                                 (1|Centred_year:SiteID),
-                               data=mean_centred_betula_dataset)
-#all variables dropping precipitation quadratic
-no_quadsPrecip_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
-                                    AmongVPDDevQuad+AmongTempDevQuad+
-                                    WithinPrecip+WithinVPD+WithinTemp+
-                                    WithinVPDQuad4+WithinTempQuad4+
-                                    (AmongPrecipDev*WithinPrecip)+
-                                    (AmongVPDDev*WithinVPD)+
-                                    (AmongTempDev*WithinTemp)+
-                                    Latitude+
-                                    (1|Year)+(1|SiteID)+
-                                    ns(Centred_year, df=3)+
-                                    (1+ns(Centred_year, df=3)|TreeID)+
-                                    (1|Centred_year:SiteID),
-                                  data=mean_centred_betula_dataset)
 
-#global model no within
-basic_global_model_betula <- glmmTMB(log1p(Ring.width)~Avg_precip+Avg_meantemp+Avg_VPD+
-                                      Avg_precipQuad+Avg_meantempQuad+Avg_VPDQuad+
-                                      Latitude+
-                                      (1|Year)+(1|SiteID)+
-                                      ns(Centred_year, df=3)+
-                                      (1+ns(Centred_year, df=3)|TreeID)+
-                                      (1|Centred_year:SiteID),
-                                    data=mean_centred_betula_dataset)
-#global model 
-global_model_betula <- glmmTMB(log1p(Ring.width)~Avg_precip+Avg_meantemp+
-                                      WithinPrecip+WithinVPD+WithinTemp+
-                                      Avg_precipQuad+Avg_meantempQuad+
-                                      WithinPrecipQuad4+WithinTempQuad4+
-                                      (Avg_precip*WithinPrecip)+
-                                      (Avg_meantemp*WithinTemp)+
-                                      Latitude+
-                                      (1|Year)+(1|SiteID)+
-                                      ns(Centred_year, df=3)+
-                                      (1+ns(Centred_year, df=3)|TreeID)+
-                                      (1|Centred_year:SiteID),
-                                    data=mean_centred_betula_dataset)
-#global model without quadratics
-global_model_no_quads_betula <- glmmTMB(log1p(Ring.width)~Avg_precip+Avg_meantemp+
-                                 WithinPrecip+WithinTemp+
-                                 (Avg_precip*WithinPrecip)+
-                                 (Avg_meantemp*WithinTemp)+
-                                 Latitude+
-                                 (1|Year)+(1|SiteID)+
-                                 ns(Centred_year, df=3)+
-                                 (1+ns(Centred_year, df=3)|TreeID)+
-                                 (1|Centred_year:SiteID),
-                               data=mean_centred_betula_dataset)
-
-summary(basic_global_model_betula)
 summary(global_model_betula)
-summary(global_model_no_quads_betula)
+
+#creating the fixed skeleton dataframes for the prediction
+med_yr <- 2000
+med_year <- median(mean_centred_betula_dataset$Centred_year)
+med_lat <- median(mean_centred_betula_dataset$Latitude)
+tree_id <- mean_centred_betula_dataset$SiteID[1]
+site_id <- mean_centred_betula_dataset$TreeID[1]
+med_temp <- median(mean_centred_betula_dataset$Avg_meantemp)
+med_VPD <- median(mean_centred_betula_dataset$Avg_VPD)
+med_precip <- median(mean_centred_betula_dataset$Avg_precip)
+med_temp_quad <- med_temp^2
+med_VPD_quad <- med_VPD^2
+med_precip_quad <- med_precip^2
+pred_temp <- seq(min(mean_centred_betula_dataset$Avg_meantemp), max(mean_centred_betula_dataset$Avg_meantemp), 2)
+pred_VPD <- seq(min(mean_centred_betula_dataset$Avg_VPD), max(mean_centred_betula_dataset$Avg_VPD), 0.1)
+pred_precip <- seq(min(mean_centred_betula_dataset$Avg_precip), max(mean_centred_betula_dataset$Avg_precip), 0.5)
+pred_temp_quad <- pred_temp^2
+pred_VPD_quad <- pred_VPD^2
+pred_precip_quad <- pred_precip^2
+
+global_model_dataset_temp_betula <- data.frame(Year=rep(med_yr, length(pred_temp)),
+                              Centred_year=rep(med_year, length(pred_temp)),
+                              Latitude=rep(med_lat, length(pred_temp)),
+                              TreeID=tree_id,
+                              Year=rep(med_year, length(pred_temp)),
+                              SiteID=site_id,
+                              Avg_meantemp=pred_temp,
+                              Avg_meantempQuad=pred_temp_quad,
+                              Avg_VPD=rep(med_VPD, length(pred_temp)),
+                              Avg_VPDQuad=rep(med_VPD_quad, length(pred_temp)),
+                              Avg_precip=rep(med_precip, length(pred_temp)),
+                              Avg_precipQuad=rep(med_precip_quad, length(pred_temp)))
+
+global_model_dataset_VPD_betula <- data.frame(Year=rep(med_yr, length(pred_VPD)),
+                                               Centred_year=rep(med_year, length(pred_VPD)),
+                                               Latitude=rep(med_lat, length(pred_VPD)),
+                                               TreeID=tree_id,
+                                               Year=rep(med_year, length(pred_VPD)),
+                                               SiteID=site_id,
+                                              Avg_meantemp=rep(med_temp, length(pred_VPD)),
+                                              Avg_meantempQuad=rep(med_temp_quad, length(pred_VPD)),
+                                              Avg_VPD=pred_VPD,
+                                              Avg_VPDQuad=pred_VPD_quad,
+                                              Avg_precip=rep(med_precip, length(pred_VPD)),
+                                              Avg_precipQuad=rep(med_precip_quad, length(pred_VPD)))
+
+global_model_dataset_precip_betula <- data.frame(Year=rep(med_yr, length(pred_precip)),
+                                               Centred_year=rep(med_year, length(pred_precip)),
+                                               Latitude=rep(med_lat, length(pred_precip)),
+                                               TreeID=tree_id,
+                                               Year=rep(med_year, length(pred_precip)),
+                                               SiteID=site_id,
+                                               Avg_meantemp=rep(med_temp, length(pred_precip)),
+                                               Avg_meantempQuad=rep(med_temp_quad, length(pred_precip)),
+                                               Avg_VPD=rep(med_VPD, length(pred_precip)),
+                                               Avg_VPDQuad=rep(med_VPD_quad, length(pred_precip)),
+                                               Avg_precip=pred_precip,
+                                               Avg_precipQuad=pred_precip_quad)
+#predictions with datasets from above
+global_prediction_temp_betula <- predict(global_model_betula, newdata = global_model_dataset_temp_betula, re.form=NULL, se.fit=TRUE)
+global_prediction_precip_betula <- predict(global_model_betula, newdata = global_model_dataset_precip_betula, re.form=NULL, se.fit=TRUE)
+global_prediction_VPD_betula <- predict(global_model_betula, newdata = global_model_dataset_VPD_betula, re.form=NULL, se.fit=TRUE)
+#putting predictions and se into dataframes
+global_model_dataset_temp_betula$pred <- global_prediction_temp_betula$fit
+global_model_dataset_precip_betula$pred <- global_prediction_precip_betula$fit
+global_model_dataset_VPD_betula$pred <- global_prediction_VPD_betula$fit
+global_model_dataset_temp_betula$SE <- global_prediction_temp_betula$se.fit
+global_model_dataset_precip_betula$SE <- global_prediction_precip_betula$se.fit
+global_model_dataset_VPD_betula$SE <- global_prediction_VPD_betula$se.fit
+#calculating confidence intervals
+global_model_dataset_temp_betula$LCI <- global_model_dataset_temp_betula$pred-1.96*global_model_dataset_temp_betula$SE
+global_model_dataset_temp_betula$HCI <- global_model_dataset_temp_betula$pred+1.96*global_model_dataset_temp_betula$SE
+global_model_dataset_VPD_betula$LCI <- global_model_dataset_VPD_betula$pred-1.96*global_model_dataset_VPD_betula$SE
+global_model_dataset_VPD_betula$HCI <- global_model_dataset_VPD_betula$pred+1.96*global_model_dataset_VPD_betula$SE
+global_model_dataset_precip_betula$LCI <- global_model_dataset_precip_betula$pred-1.96*global_model_dataset_precip_betula$SE
+global_model_dataset_precip_betula$HCI <- global_model_dataset_precip_betula$pred+1.96*global_model_dataset_precip_betula$SE
+
+#making figures for this
+bet_raw_precip <- ggplot(data=global_model_dataset_precip_betula, aes(x=Avg_precip, y=pred))+
+  geom_line(colour="mediumpurple3", linetype="dotted")+
+  geom_line(data=global_model_dataset_precip_betula, aes(x=Avg_precip, y=HCI), colour = "pink", linetype = "dashed")+
+  geom_line(data=global_model_dataset_precip_betula, aes(x=Avg_precip, y=LCI), colour = "pink", linetype = "dashed")+
+  xlab("Average daily precipitation (mm)")+
+  ylab("Ring width (log+1)")+
+  theme_cowplot()+
+  theme(axis.title.x=element_text(size=12),
+        axis.title.y=element_text(size=12),
+        title=element_text(size=12))+
+  theme(plot.title = element_text(face = "italic"))+
+  ylim(3, 7)+
+  xlim(1, 8)
+
+bet_raw_temp <- ggplot(data=global_model_dataset_temp_betula, aes(x=Avg_meantemp, y=pred))+
+  geom_line(col="mediumpurple3")+
+  geom_line(data=global_model_dataset_temp_betula, aes(x=Avg_meantemp, y=HCI), colour = "pink", linetype = "dashed")+
+  geom_line(data=global_model_dataset_temp_betula, aes(x=Avg_meantemp, y=LCI), colour = "pink", linetype = "dashed")+
+  xlab("Average daily mean temperature (°C)")+
+  ylab("Ring width (log+1)")+
+  theme_cowplot()+
+  theme(axis.title.x=element_text(size=12),
+        axis.title.y=element_text(size=12),
+        title=element_text(size=12))+
+  theme(plot.title = element_text(face = "italic"))+
+  ylim(3, 7)+
+  xlim(9, 21)
+
+bet_raw_VPD <- ggplot(data=global_model_dataset_VPD_betula, aes(x=Avg_VPD, y=pred))+
+  geom_line(colour="mediumpurple3", linetype="dotted")+
+  geom_line(data=global_model_dataset_VPD_betula, aes(x=Avg_VPD, y=HCI), colour = "pink", linetype = "dashed")+
+  geom_line(data=global_model_dataset_VPD_betula, aes(x=Avg_VPD, y=LCI), colour = "pink", linetype = "dashed")+
+  xlab("Average daily VPD (kPa)")+
+  ylab("Ring width (log+1)")+
+  ggtitle("Betula pendula")+
+  theme_cowplot()+
+  theme(axis.title.x=element_text(size=12),
+        axis.title.y=element_text(size=12),
+        title=element_text(size=12))+
+  theme(plot.title = element_text(face = "italic"))+
+  ylim(3, 7)+
+  xlim(0.2, 1)
 
 
-##final models
+#dropping quadratics
+global_model_no_quads_betula <- glmmTMB(log1p(Ring.width)~Avg_precip+Avg_meantemp+Avg_VPD+
+                                           Latitude+
+                                           (1|Year)+(1|SiteID)+
+                                           ns(Centred_year, df=3)+
+                                           (1+ns(Centred_year, df=3)|TreeID)+
+                                           (1|Centred_year:SiteID),
+                                         data=mean_centred_betula_dataset)
+
+##final model
 ##latitude as fixed effect, year and siteID as random effect
 #individual models for each climate driver 
-#models with multiple climate drivers 
 #####
 temperature_quad_model_lat_year_betula <- glmmTMB(log1p(Ring.width)~AmongTempDev+WithinTemp+
-                                             AmongTempDevQuad+WithinTempQuad4+
-                                             (WithinTemp*AmongTempDev)+
+                                                     AmongTempDevQuad+WithinTempQuad4+
+                                                     (WithinTemp*AmongTempDev)+
+                                                     Latitude+(1|Year)+(1|SiteID)+
+                                                     ns(Centred_year, df=3)+
+                                                     (1+ns(Centred_year, df=3)|TreeID)+
+                                                     (1|Centred_year:SiteID),
+                                                   data=mean_centred_betula_dataset)
+
+VPD_quad_model_lat_year_betula <- glmmTMB(log1p(Ring.width)~AmongVPDDev+WithinVPD+
+                                             AmongVPDDevQuad+WithinVPDQuad4+
+                                             (AmongVPDDev*WithinVPD)+
                                              Latitude+(1|Year)+(1|SiteID)+
                                              ns(Centred_year, df=3)+
                                              (1+ns(Centred_year, df=3)|TreeID)+
                                              (1|Centred_year:SiteID),
                                            data=mean_centred_betula_dataset)
 
-VPD_quad_model_lat_year_betula <- glmmTMB(log1p(Ring.width)~AmongVPDDev+WithinVPD+
-                                     AmongVPDDevQuad+WithinVPDQuad4+
-                                     (AmongVPDDev*WithinVPD)+
-                                     Latitude+(1|Year)+(1|SiteID)+
-                                     ns(Centred_year, df=3)+
-                                     (1+ns(Centred_year, df=3)|TreeID)+
-                                     (1|Centred_year:SiteID),
-                                   data=mean_centred_betula_dataset)
-
 precip_quad_model_lat_year_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+WithinPrecip+
-                                        AmongPrecipDevQuad+WithinPrecipQuad4+
-                                        (AmongPrecipDev*WithinPrecip)+
-                                        Latitude+(1|Year)+(1|SiteID)+
-                                        ns(Centred_year, df=3)+
-                                        (1+ns(Centred_year, df=3)|TreeID)+
-                                        (1|Centred_year:SiteID),
-                                      data=mean_centred_betula_dataset)
+                                                AmongPrecipDevQuad+WithinPrecipQuad4+
+                                                (AmongPrecipDev*WithinPrecip)+
+                                                Latitude+(1|Year)+(1|SiteID)+
+                                                ns(Centred_year, df=3)+
+                                                (1+ns(Centred_year, df=3)|TreeID)+
+                                                (1|Centred_year:SiteID),
+                                              data=mean_centred_betula_dataset)
 
 
-#climate model with all variables
+#more complicated climate models 
+#including all climatic variables
 all_climate_model_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
-                               AmongPrecipDevQuad+AmongVPDDevQuad+AmongTempDevQuad+
-                               WithinPrecip+WithinVPD+WithinTemp+
-                               WithinPrecipQuad4+WithinVPDQuad4+WithinTempQuad4+
-                               (AmongPrecipDev*WithinPrecip)+
-                               (AmongVPDDev*WithinVPD)+
-                               (AmongTempDev*WithinTemp)+
-                               Latitude+
-                               (1|Year)+(1|SiteID)+
-                               ns(Centred_year, df=3)+
-                               (1+ns(Centred_year, df=3)|TreeID)+
-                               (1|Centred_year:SiteID),
-                             data=mean_centred_betula_dataset)
-
-#VPD + temp
-VPD_temp_climate_model_betula <- glmmTMB(log1p(Ring.width)~AmongVPDDev+AmongTempDev+
-                                    AmongVPDDevQuad+AmongTempDevQuad+
-                                    WithinVPD+WithinTemp+
-                                    WithinVPDQuad4+WithinTempQuad4+
-                                    (AmongVPDDev*WithinVPD)+
-                                    (AmongTempDev*WithinTemp)+
-                                    Latitude+
-                                    (1|Year)+(1|SiteID)+
-                                    ns(Centred_year, df=3)+
-                                    (1+ns(Centred_year, df=3)|TreeID)+
-                                    (1|Centred_year:SiteID),
-                                  data=mean_centred_betula_dataset)
-
-#VPD + precip
-VPD_precip_climate_model_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+
-                                      AmongPrecipDevQuad+AmongVPDDevQuad+
-                                      WithinPrecip+WithinVPD+
-                                      WithinPrecipQuad4+WithinVPDQuad4+
-                                      (AmongPrecipDev*WithinPrecip)+
-                                      (AmongVPDDev*WithinVPD)+
-                                      Latitude+
-                                      (1|Year)+(1|SiteID)+
-                                      ns(Centred_year, df=3)+
-                                      (1+ns(Centred_year, df=3)|TreeID)+
-                                      (1|Centred_year:SiteID),
-                                    data=mean_centred_betula_dataset)
-
-library(glmmTMB)
-library(splines)
-#precip + temp
-precip_temp_climate_model_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongTempDev+
-                                       AmongPrecipDevQuad+AmongTempDevQuad+
-                                       WithinPrecip+WithinTemp+
-                                       WithinPrecipQuad4+WithinTempQuad4+
+                                       AmongPrecipDevQuad+AmongVPDDevQuad+AmongTempDevQuad+
+                                       WithinPrecip+WithinVPD+WithinTemp+
+                                       WithinPrecipQuad4+WithinVPDQuad4+WithinTempQuad4+
                                        (AmongPrecipDev*WithinPrecip)+
+                                       (AmongVPDDev*WithinVPD)+
                                        (AmongTempDev*WithinTemp)+
                                        Latitude+
                                        (1|Year)+(1|SiteID)+
@@ -261,117 +389,213 @@ precip_temp_climate_model_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+Amo
                                        (1|Centred_year:SiteID),
                                      data=mean_centred_betula_dataset)
 
-summary(precip_temp_climate_model_betula)
+#combinations of different variables
+#VPD + temp
+VPD_temp_climate_model_betula <- glmmTMB(log1p(Ring.width)~AmongVPDDev+AmongTempDev+
+                                            AmongVPDDevQuad+AmongTempDevQuad+
+                                            WithinVPD+WithinTemp+
+                                            WithinVPDQuad4+WithinTempQuad4+
+                                            (AmongVPDDev*WithinVPD)+
+                                            (AmongTempDev*WithinTemp)+
+                                            Latitude+
+                                            (1|Year)+(1|SiteID)+
+                                            ns(Centred_year, df=3)+
+                                            (1+ns(Centred_year, df=3)|TreeID)+
+                                            (1|Centred_year:SiteID),
+                                          data=mean_centred_betula_dataset)
+
+#VPD + precip
+VPD_precip_climate_model_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+
+                                              AmongPrecipDevQuad+AmongVPDDevQuad+
+                                              WithinPrecip+WithinVPD+
+                                              WithinPrecipQuad4+WithinVPDQuad4+
+                                              (AmongPrecipDev*WithinPrecip)+
+                                              (AmongVPDDev*WithinVPD)+
+                                              Latitude+
+                                              (1|Year)+(1|SiteID)+
+                                              ns(Centred_year, df=3)+
+                                              (1+ns(Centred_year, df=3)|TreeID)+
+                                              (1|Centred_year:SiteID),
+                                            data=mean_centred_betula_dataset)
+
+#precip + temp
+precip_temp_climate_model_betula <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongTempDev+
+                                               AmongPrecipDevQuad+AmongTempDevQuad+
+                                               WithinPrecip+WithinTemp+
+                                               WithinPrecipQuad4+WithinTempQuad4+
+                                               (AmongPrecipDev*WithinPrecip)+
+                                               (AmongTempDev*WithinTemp)+
+                                               Latitude+
+                                               (1|Year)+(1|SiteID)+
+                                               ns(Centred_year, df=3)+
+                                               (1+ns(Centred_year, df=3)|TreeID)+
+                                               (1|Centred_year:SiteID),
+                                             data=mean_centred_betula_dataset)
+
 #creating a dataframe to use in akaike.weights function 
-AICdf_betula <- matrix(nrow=14, ncol=5)
-colnames(AICdf_betula) <- c('Model', 'AIC', 'DeltaAIC', 'Weight', 'Species')
+AICdf_betula <- matrix(nrow=18, ncol=6)
+colnames(AICdf_betula) <- c('Model', 'Number of Parameters (Fixed)', 'AIC', 'DeltaAIC', 'Weight', 'Species')
 
 summary(null_model_betula)
+library(insight)
+get_parameters(null_model_betula)
 AICdf_betula[1,1] <- c('Null model')
-AICdf_betula[1,2] <-  19597.9
+AICdf_betula[1,2] <- c('6')
+AICdf_betula[1,3] <- 19597.9 #taken from that calculated by glmmTMB in summary
 
-summary(no_quads_betula)
-AICdf_betula[2,1] <- c('All climate variables, excluding quadratics')
-AICdf_betula[2,2] <-  19591.9
+summary(no_quads_temp_betula)
+get_parameters(no_quads_temp_betula)
+AICdf_betula[2,1] <- c('All climate variables, excluding temporal quadratics')
+AICdf_betula[2,2] <- c('18')
+AICdf_betula[2,3] <- 19596.3
+
+summary(no_quads_spat_betula)
+get_parameters(no_quads_spat_betula)
+AICdf_betula[3,1] <- c('All climate variables, excluding spatial quadratics')
+AICdf_betula[3,2] <- c('18')
+AICdf_betula[3,3] <-  19597.2
 
 summary(precip_quad_model_lat_year_betula)
-AICdf_betula[3,1] <- c('Precipitation only')
-AICdf_betula[3,2] <-  19594.6 
+get_parameters(precip_quad_model_lat_year_betula)
+AICdf_betula[4,1] <- c('Precipitation only')
+AICdf_betula[4,2] <- c('11')
+AICdf_betula[4,3] <-  19594.6 
 
 summary(temperature_quad_model_lat_year_betula)
-AICdf_betula[4,1] <- c('Mean temperature only')
-AICdf_betula[4,2] <- 19594.0
+AICdf_betula[5,1] <- c('Mean temperature only')
+AICdf_betula[5,2] <- c('11')
+AICdf_betula[5,3] <- 19594.0
 
 summary(VPD_quad_model_lat_year_betula)
-AICdf_betula[5,1] <- c('VPD only')
-AICdf_betula[5,2] <- 19597.5
+AICdf_betula[6,1] <- c('VPD only')
+AICdf_betula[6,2] <- c('11')
+AICdf_betula[6,3] <- 19597.5
 
 summary(all_climate_model_betula)
-AICdf_betula[6,1] <- c('All climate variables')
-AICdf_betula[6,2] <- 19598.8
+get_parameters(all_climate_model_betula)
+AICdf_betula[7,1] <- c('All climate variables')
+AICdf_betula[7,2] <- c('21')
+AICdf_betula[7,3] <- 19598.8
 
 summary(VPD_temp_climate_model_betula)
-AICdf_betula[7,1] <- c('VPD and mean temperature')
-AICdf_betula[7,2] <- 19596.0
+get_parameters(VPD_temp_climate_model_betula)
+AICdf_betula[8,1] <- c('VPD and mean temperature')
+AICdf_betula[8,2] <- c('16')
+AICdf_betula[8,3] <- 19596.0
 
 summary(VPD_precip_climate_model_betula)
-AICdf_betula[8,1] <- c('VPD and precipitation')
-AICdf_betula[8,2] <- 19599.5 
+AICdf_betula[9,1] <- c('VPD and precipitation')
+AICdf_betula[9,2] <- c('16')
+AICdf_betula[9,3] <- 19599.5
 
 summary(precip_temp_climate_model_betula)
-AICdf_betula[9,1] <- c('Precipitation and mean temperature')
-AICdf_betula[9,2] <-  19592.4 
+AICdf_betula[10,1] <- c('Precipitation and mean temperature')
+AICdf_betula[10,2] <- c('16')
+AICdf_betula[10,3] <-  19592.4 
 
-summary(no_quadsTemp_betula)
-AICdf_betula[10,1] <- c('All climate variables, excluding temperature quadratic')
-AICdf_betula[10,2] <-19597.9 
+summary(no_quadsTemp_temp_betula)
+get_parameters(no_quadsTemp_temp_betula)
+AICdf_betula[11,1] <- c('All climate variables, excluding temporal temperature quadratic')
+AICdf_betula[11,2] <- c('20')
+AICdf_betula[11,3] <- 19596.8
 
-summary(no_quadsVPD_betula)
-AICdf_betula[11,1] <- c('All climate variables, excluding VPD quadratic')
-AICdf_betula[11,2] <- 19595.4 
+summary(no_quadsTemp_spat_betula)
+AICdf_betula[12,1] <- c('All climate variables, excluding spatial temperature quadratic')
+AICdf_betula[12,2] <- c('20')
+AICdf_betula[12,3] <- 19599.9
 
-summary(no_quadsPrecip_betula)
-AICdf_betula[12,1] <- c('All climate variables, excluding precipitation quadratic')
-AICdf_betula[12,2] <- 19597.7 
+summary(no_quadsVPD_temp_betula)
+AICdf_betula[13,1] <- c('All climate variables, excluding temporal VPD quadratic')
+AICdf_betula[13,2] <- c('20')
+AICdf_betula[13,3] <- 19597.2
+
+summary(no_quadsVPD_spat_betula)
+AICdf_betula[14,1] <- c('All climate variables, excluding spatial VPD quadratic')
+AICdf_betula[14,2] <- c('20')
+AICdf_betula[14,3] <- 19597.0 
+
+summary(no_quadsPrecip_temp_betula)
+AICdf_betula[15,1] <- c('All climate variables, excluding temporal precipitation quadratic')
+AICdf_betula[15,2] <- c('20')
+AICdf_betula[15,3] <- 19599.1
+
+summary(no_quadsPrecip_spat_betula)
+AICdf_betula[16,1] <- c('All climate variables, excluding spatial precipitation quadratic')
+AICdf_betula[16,2] <- c('20')
+AICdf_betula[16,3] <- 19597.4 
 
 summary(global_model_betula)
-AICdf_betula[13,1] <- c('Global optimum model')
-AICdf_betula[13,2] <- 19591.6 
+get_parameters(global_model_betula)
+AICdf_betula[17,1] <- c('Raw climate model')
+AICdf_betula[17,2] <- c('12')
+AICdf_betula[17,3] <- 19589.6
 
 summary(global_model_no_quads_betula)
-AICdf_betula[14,1] <- c('Global optimum model, excluding quadratics')
-AICdf_betula[14,2] <-  19592.9
+get_parameters(global_model_no_quads_betula)
+AICdf_betula[18,1] <- c('Raw climate model, excluding quadratics')
+AICdf_betula[18,2] <- c('9')
+AICdf_betula[18,3] <- 19591.2 
 
 #calculating delta AIC and weights
 library(qpcR)
-weights_betula <- akaike.weights(as.numeric(AICdf_betula[,2]))
-AICdf_betula[,3] <- weights_betula$deltaAIC
-AICdf_betula[,4] <- weights_betula$weights
+weights_betula <- akaike.weights(as.numeric(AICdf_betula[,3]))
+AICdf_betula[,4] <- weights_betula$deltaAIC
+AICdf_betula[,5] <- weights_betula$weights
+AICdf_betula[,6] <- c("Betula pendula")
 
-AICdf_betula[,5] <- "Betula pendula"
+#adding betula to excel sheet
 AIC_df <- read.csv("Figures/AIC_scores.csv")
 AIC_df <- AIC_df[,-1]
 AIC_df <- rbind(AIC_df, AICdf_betula)
-write.csv(AIC_df, "Figures/AIC_scores.csv")
+write.csv(AICdf_betula, "Figures/AIC_scores_3.csv")
 
-##AIC plot 
-AIC_df <- read.csv("Figures/AIC_scores.csv")
-AIC_df$Weight <- as.numeric(AIC_df$Weight)
-AIC_df$DeltaAIC <- as.numeric(AIC_df$DeltaAIC)
-AIC_df$DeltaAIC <- format(round(AIC_df$DeltaAIC, 2), nsmall = 2)
-AIC_df$DeltaAIC <- as.numeric(AIC_df$DeltaAIC)
-
-#ordering the models in a more intuitive way
-AIC_df$Model <- factor(AIC_df$Model, levels=c("Null model", "Mean temperature only",
-                                                         "Precipitation only", "VPD only",
-                                                         "Precipitation and mean temperature", "VPD and mean temperature",
-                                                         "VPD and precipitation", "All climate variables",
-                                                         "All climate variables, excluding quadratics",
-                                                         "All climate variables, excluding temperature quadratic",
-                                                         "All climate variables, excluding precipitation quadratic",
-                                                         "All climate variables, excluding VPD quadratic",
-                                                         "Global optimum model",
-                                                         "Global optimum model, excluding quadratics"))
-
-
+#creating figure
 library(ggplot2)
 library(cowplot)
+#nicer colour scheme
 library(viridis)
+
+#going from matrix to df
+AICdf_betula <- as.data.frame(AICdf_betula)
+#making delta AIC numeric
+AICdf_betula$DeltaAIC <- as.numeric(AICdf_betula$DeltaAIC)
+#rounding delta AIC to reasonable dp
+AICdf_betula$DeltaAIC_lab <- format(round(AICdf_betula$DeltaAIC, 2), nsmall = 1)
+#rearranging model order
+AICdf_betula$Model <- factor(AICdf_betula$Model, levels=c("Null model", "Mean temperature only",
+                                                            "Precipitation only", "VPD only",
+                                                            "Precipitation and mean temperature", "VPD and mean temperature",
+                                                            "VPD and precipitation", "All climate variables",
+                                                            "All climate variables, excluding temporal quadratics",
+                                                            "All climate variables, excluding temporal temperature quadratic",
+                                                            "All climate variables, excluding temporal precipitation quadratic",
+                                                            "All climate variables, excluding temporal VPD quadratic",
+                                                            "All climate variables, excluding spatial quadratics",
+                                                            "All climate variables, excluding spatial temperature quadratic",
+                                                            "All climate variables, excluding spatial precipitation quadratic",
+                                                            "All climate variables, excluding spatial VPD quadratic",
+                                                            "Raw climate model",
+                                                            "Raw climate model, excluding quadratics"))
 #creating figure
-#because of large number of models, discrete function for viridis not working and has to be scale
-ggplot(data=AIC_df, aes(x=Species, y=DeltaAIC, fill=Model))+
+AIC_betula_fig <- ggplot(data=AICdf_betula, aes(x=Model, y=DeltaAIC, fill=Model))+
   geom_bar(position="dodge", stat="identity")+
   theme_cowplot()+
-  ylim(0,125)+
   theme(axis.text=element_text(size=10), legend.text = element_text(size=10))+
-  geom_text(aes(label=DeltaAIC), vjust=-0.5, size = 2, position = position_dodge(0.9))+
+  geom_text(aes(label=DeltaAIC_lab), vjust=-0.5, size = 2.5, position = position_dodge(0.9))+
   ylab("Delta AIC")+
-  theme(legend.title=element_blank(),
-        axis.text.x=element_text(face="italic"),
-        legend.text=element_text(size=10))+
-  scale_fill_viridis(discrete=TRUE)
+  theme(legend.position="none")+
+  scale_fill_viridis(discrete=TRUE)+
+  ggtitle("Betula pendula")+
+  scale_x_discrete(labels= c(1:18))+
+  theme(title=element_text(size=12),
+        axis.title.x=element_blank())+
+  theme(plot.title = element_text(face = "italic"))+
+  ylim(0,130)
 
-
+#creating grid 
+plot_grid(AIC_fagus_fig, AIC_quercus_fig, AIC_betula_fig, ncol=3, nrow=1)+
+  draw_label("Model", x=0.5, y=  0, vjust=-0.5, angle= 0) +
+  draw_label("Delta AIC", x=  0, y=0.5, vjust= 1.5, angle=90)
 ##plotting 
 library(dplyr)
 
@@ -601,13 +825,11 @@ betula_temp <- ggplot(data=mean_centred_betula_dataset, aes(x=AmongTemp, y=log1p
   theme_cowplot()+
   xlab("Deviation from global average temperature (°C)")+
   ylab("Ring width (log+1)")+
-  ggtitle("Betula pendula")+
   theme(axis.title.x=element_text(size=12),
         axis.title.y=element_text(size=12),
         title=element_text(size=12))+
-  theme(plot.title = element_text(face = "italic"))#+
-  #ylim(2, 6)+
-  #xlim(-8, 6)
+  ylim(2, 6)+
+  xlim(-8, 6)
 
 betula_temp
 #for VPD
@@ -689,10 +911,13 @@ betula_VPD <- ggplot(data=mean_centred_betula_dataset, aes(x=AmongVPD, y=log1p(R
   theme_cowplot()+
   xlab("Deviation from global average VPD (kPa)")+
   ylab("Ring width (log+1)")+
-  theme(axis.title.x=element_text(size=12))+
-  theme(axis.title.y=element_text(size=12))#+
-  #ylim(2,6)+
-  #xlim(-0.5, 1)
+  ggtitle("Betula pendula")+
+  theme(axis.title.x=element_text(size=12),
+        axis.title.y=element_text(size=12),
+        title=element_text(size=12))+
+  theme(plot.title = element_text(face = "italic"))+
+  ylim(2,6)+
+  xlim(-0.5, 1)
 
 betula_VPD
 
@@ -783,10 +1008,11 @@ betula_Precip <- ggplot(data=mean_centred_betula_dataset, aes(x=AmongPrecip, y=l
   xlab("Deviation from global average precipitation (mm)")+
   ylab("Ring width (log+1)")+
   theme(axis.title.x=element_text(size=12))+
-  theme(axis.title.y=element_text(size=12))#+
-  #ylim(2,4)+
-  #xlim(-4, 6)
+  theme(axis.title.y=element_text(size=12))+
+  ylim(2,4)+
+  xlim(-4, 6)
 
 betula_Precip
 
+summary(all_climate_model_betula)
 

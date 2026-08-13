@@ -56,6 +56,22 @@ red_quercus_dataset <- mean_centred_quercus_dataset %>%
   filter(SiteID != "ITQP09") %>%
   filter(SiteID != "ITQP10")
 
+#checking for correlation between climate variables
+cor.test(red_quercus_dataset$Avg_meantemp, red_quercus_dataset$Avg_VPD)
+cor.test(red_quercus_dataset$Avg_precip, red_quercus_dataset$Avg_VPD)
+cor.test(red_quercus_dataset$Avg_meantemp, red_quercus_dataset$Avg_precip)
+#checking correlation in space and time 
+cor.test(red_quercus_dataset$AmongTemp, red_quercus_dataset$AmongVPD)
+cor.test(red_quercus_dataset$WithinTemp, red_quercus_dataset$WithinVPD)
+cor.test(red_quercus_dataset$AmongTemp, red_quercus_dataset$AmongPrecip)
+cor.test(red_quercus_dataset$WithinTemp, red_quercus_dataset$WithinPrecip)
+cor.test(red_quercus_dataset$AmongPrecip, red_quercus_dataset$AmongVPD)
+cor.test(red_quercus_dataset$WithinPrecip, red_quercus_dataset$WithinVPD)
+
+quer_cor <- ggplot(data=red_quercus_dataset, aes(x=Avg_VPD, y=Avg_meantemp))+
+  geom_point()+
+  theme_cowplot()
+
 #calculating average among (global average)
 red_quercus_dataset$AvgAmongVPD <- mean(red_quercus_dataset$AmongVPD)
 red_quercus_dataset$AvgAmongPrecip <- mean(red_quercus_dataset$AmongPrecip)
@@ -79,89 +95,254 @@ null_model_quercus <- glmmTMB(log1p(Ring.width)~Latitude+(1|Year)+(1|SiteID)+
                         (1+ns(Centred_year, df=3)|TreeID)+
                         (1|Centred_year:SiteID),
                       data=red_quercus_dataset)
-#model with all quadratics dropped
-no_quads_quercus <- glmmTMB(log1p(Ring.width)~AmongTempDev+WithinTemp+
-                      AmongVPDDev+WithinVPD+
-                      AmongPrecipDev+WithinPrecip+
-                      (WithinTemp*AmongTempDev)+
-                      Latitude+(1|Year)+(1|SiteID)+
-                      ns(Centred_year, df=3)+
-                      (1+ns(Centred_year, df=3)|TreeID)+
-                      (1|Centred_year:SiteID),
-                    data=red_quercus_dataset)
-#all variables with temperature quadratics dropped
-no_quadsTemp_quercus <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
-                          AmongPrecipDevQuad+AmongVPDDevQuad+
-                          WithinPrecip+WithinVPD+WithinTemp+
-                          WithinPrecipQuad4+WithinVPDQuad4+
-                          (AmongPrecipDev*WithinPrecip)+
-                          (AmongVPDDev*WithinVPD)+
-                          (AmongTempDev*WithinTemp)+
-                          Latitude+
-                          (1|Year)+(1|SiteID)+
-                          ns(Centred_year, df=3)+
-                          (1+ns(Centred_year, df=3)|TreeID)+
-                          (1|Centred_year:SiteID),
-                        data=red_quercus_dataset)
-#all variables with VPD quadratics dropped
-no_quadsVPD_quercus <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
-                         AmongPrecipDevQuad+AmongTempDevQuad+
-                         WithinPrecip+WithinVPD+WithinTemp+
-                         WithinPrecipQuad4+WithinTempQuad4+
-                         (AmongPrecipDev*WithinPrecip)+
-                         (AmongVPDDev*WithinVPD)+
-                         (AmongTempDev*WithinTemp)+
-                         Latitude+
-                         (1|Year)+(1|SiteID)+
-                         ns(Centred_year, df=3)+
-                         (1+ns(Centred_year, df=3)|TreeID)+
-                         (1|Centred_year:SiteID),
-                       data=red_quercus_dataset)
-#all variables with precipitation quadratics dropped
-no_quadsPrecip_quercus <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
-                            AmongVPDDevQuad+AmongTempDevQuad+
-                            WithinPrecip+WithinVPD+WithinTemp+
-                            WithinVPDQuad4+WithinTempQuad4+
-                            (AmongPrecipDev*WithinPrecip)+
-                            (AmongVPDDev*WithinVPD)+
-                            (AmongTempDev*WithinTemp)+
-                            Latitude+
-                            (1|Year)+(1|SiteID)+
-                            ns(Centred_year, df=3)+
-                            (1+ns(Centred_year, df=3)|TreeID)+
-                            (1|Centred_year:SiteID),
-                          data=red_quercus_dataset)
 
-#global model, no within
-basic_global_model_quercus <- glmmTMB(log1p(Ring.width)~Avg_precip+Avg_meantemp+Avg_VPD+
-                                Avg_precipQuad+Avg_meantempQuad+Avg_VPDQuad+
-                                Latitude+
-                                (1|Year)+(1|SiteID)+
-                                ns(Centred_year, df=3)+
-                                (1+ns(Centred_year, df=3)|TreeID)+
-                                (1|Centred_year:SiteID),
-                              data=red_quercus_dataset)
+#dropping quadratics to check assumption of optimum climate value
+no_quads_spat_quercus <- glmmTMB(log1p(Ring.width)~AmongTempDev+WithinTemp+WithinTempQuad4+
+                           AmongVPDDev+WithinVPD+WithinVPDQuad4+
+                           AmongPrecipDev+WithinPrecip+WithinPrecipQuad4+
+                           (WithinTemp*AmongTempDev)+
+                             (AmongPrecipDev*WithinPrecip)+
+                             (AmongVPDDev*WithinVPD)+
+                           Latitude+(1|Year)+(1|SiteID)+
+                           ns(Centred_year, df=3)+
+                           (1+ns(Centred_year, df=3)|TreeID)+
+                           (1|Centred_year:SiteID),
+                         data=red_quercus_dataset)
+#dropping temperature quadratic (spatial)
+no_quadsTemp_spat_quercus <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
+                               AmongPrecipDevQuad+AmongVPDDevQuad+
+                               WithinPrecip+WithinVPD+WithinTemp+
+                               WithinPrecipQuad4+WithinVPDQuad4+WithinTempQuad4+
+                               (AmongPrecipDev*WithinPrecip)+
+                               (AmongVPDDev*WithinVPD)+
+                               (AmongTempDev*WithinTemp)+
+                               Latitude+
+                               (1|Year)+(1|SiteID)+
+                               ns(Centred_year, df=3)+
+                               (1+ns(Centred_year, df=3)|TreeID)+
+                               (1|Centred_year:SiteID),
+                             data=red_quercus_dataset)
+#dropping VPD quadratic (spatial)
+no_quadsVPD_spat_quercus <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
+                              AmongPrecipDevQuad+AmongTempDevQuad+
+                              WithinPrecip+WithinVPD+WithinTemp+
+                              WithinPrecipQuad4+WithinTempQuad4+WithinVPDQuad4+
+                              (AmongPrecipDev*WithinPrecip)+
+                              (AmongVPDDev*WithinVPD)+
+                              (AmongTempDev*WithinTemp)+
+                              Latitude+
+                              (1|Year)+(1|SiteID)+
+                              ns(Centred_year, df=3)+
+                              (1+ns(Centred_year, df=3)|TreeID)+
+                              (1|Centred_year:SiteID),
+                            data=red_quercus_dataset)
+#dropping precipitation quadratic (spatial)
+no_quadsPrecip_spat_quercus <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
+                                 AmongVPDDevQuad+AmongTempDevQuad+
+                                 WithinPrecip+WithinVPD+WithinTemp+
+                                 WithinVPDQuad4+WithinTempQuad4+WithinPrecipQuad4+
+                                 (AmongPrecipDev*WithinPrecip)+
+                                 (AmongVPDDev*WithinVPD)+
+                                 (AmongTempDev*WithinTemp)+
+                                 Latitude+
+                                 (1|Year)+(1|SiteID)+
+                                 ns(Centred_year, df=3)+
+                                 (1+ns(Centred_year, df=3)|TreeID)+
+                                 (1|Centred_year:SiteID),
+                               data=red_quercus_dataset)
 
-#global optimum levels to check that separating spatial and temporal good approach
+
+#dropping quadratics to check assumption of optimum climate value (temporal)
+no_quads_temp_quercus <- glmmTMB(log1p(Ring.width)~AmongTempDev+WithinTemp+AmongTempDevQuad+
+                           AmongVPDDev+WithinVPD+AmongVPDDevQuad+
+                           AmongPrecipDev+WithinPrecip+AmongPrecipDevQuad+
+                           (WithinTemp*AmongTempDev)+
+                             (AmongPrecipDev*WithinPrecip)+
+                             (AmongVPDDev*WithinVPD)+
+                           Latitude+(1|Year)+(1|SiteID)+
+                           ns(Centred_year, df=3)+
+                           (1+ns(Centred_year, df=3)|TreeID)+
+                           (1|Centred_year:SiteID),
+                         data=red_quercus_dataset)
+#dropping temperature quadratic (temporal)
+no_quadsTemp_temp_quercus <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
+                               AmongPrecipDevQuad+AmongVPDDevQuad+AmongTempDevQuad+
+                               WithinPrecip+WithinVPD+WithinTemp+
+                               WithinPrecipQuad4+WithinVPDQuad4+
+                               (AmongPrecipDev*WithinPrecip)+
+                               (AmongVPDDev*WithinVPD)+
+                               (AmongTempDev*WithinTemp)+
+                               Latitude+
+                               (1|Year)+(1|SiteID)+
+                               ns(Centred_year, df=3)+
+                               (1+ns(Centred_year, df=3)|TreeID)+
+                               (1|Centred_year:SiteID),
+                             data=red_quercus_dataset)
+#dropping VPD quadratic (temporal)
+no_quadsVPD_temp_quercus <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
+                              AmongPrecipDevQuad+AmongTempDevQuad+AmongVPDDevQuad+
+                              WithinPrecip+WithinVPD+WithinTemp+
+                              WithinPrecipQuad4+WithinTempQuad4+
+                              (AmongPrecipDev*WithinPrecip)+
+                              (AmongVPDDev*WithinVPD)+
+                              (AmongTempDev*WithinTemp)+
+                              Latitude+
+                              (1|Year)+(1|SiteID)+
+                              ns(Centred_year, df=3)+
+                              (1+ns(Centred_year, df=3)|TreeID)+
+                              (1|Centred_year:SiteID),
+                            data=red_quercus_dataset)
+#dropping precipitation quadratic (temporal)
+no_quadsPrecip_temp_quercus <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
+                                 AmongVPDDevQuad+AmongTempDevQuad+AmongPrecipDevQuad+
+                                 WithinPrecip+WithinVPD+WithinTemp+
+                                 WithinVPDQuad4+WithinTempQuad4+
+                                 (AmongPrecipDev*WithinPrecip)+
+                                 (AmongVPDDev*WithinVPD)+
+                                 (AmongTempDev*WithinTemp)+
+                                 Latitude+
+                                 (1|Year)+(1|SiteID)+
+                                 ns(Centred_year, df=3)+
+                                 (1+ns(Centred_year, df=3)|TreeID)+
+                                 (1|Centred_year:SiteID),
+                               data=red_quercus_dataset)
+
+#global model to check splitting temporal and spatial adds value
+#took out within as well
 global_model_quercus <- glmmTMB(log1p(Ring.width)~Avg_precip+Avg_meantemp+Avg_VPD+
-                          WithinPrecip+WithinVPD+WithinTemp+
                           Avg_precipQuad+Avg_meantempQuad+Avg_VPDQuad+
-                          WithinPrecipQuad4+WithinVPDQuad4+WithinTempQuad4+
-                          (Avg_precip*WithinPrecip)+
-                          (Avg_VPD*WithinVPD)+
-                          (Avg_meantemp*WithinTemp)+
                           Latitude+
                           (1|Year)+(1|SiteID)+
                           ns(Centred_year, df=3)+
                           (1+ns(Centred_year, df=3)|TreeID)+
                           (1|Centred_year:SiteID),
                         data=red_quercus_dataset)
-#global but dropping all quadratics
+
+summary(global_model_quercus)
+
+#creating the fixed skeleton dataframes for the prediction
+med_yr <- 2000
+med_year <- median(red_quercus_dataset$Centred_year)
+med_lat <- median(red_quercus_dataset$Latitude)
+tree_id <- red_quercus_dataset$SiteID[1]
+site_id <- red_quercus_dataset$TreeID[1]
+med_temp <- median(red_quercus_dataset$Avg_meantemp)
+med_VPD <- median(red_quercus_dataset$Avg_VPD)
+med_precip <- median(red_quercus_dataset$Avg_precip)
+med_temp_quad <- med_temp^2
+med_VPD_quad <- med_VPD^2
+med_precip_quad <- med_precip^2
+pred_temp <- seq(min(red_quercus_dataset$Avg_meantemp), max(red_quercus_dataset$Avg_meantemp), 2)
+pred_VPD <- seq(min(red_quercus_dataset$Avg_VPD), max(red_quercus_dataset$Avg_VPD), 0.1)
+pred_precip <- seq(min(red_quercus_dataset$Avg_precip), max(red_quercus_dataset$Avg_precip), 0.5)
+pred_temp_quad <- pred_temp^2
+pred_VPD_quad <- pred_VPD^2
+pred_precip_quad <- pred_precip^2
+
+global_model_dataset_temp_quercus <- data.frame(Year=rep(med_yr, length(pred_temp)),
+                                               Centred_year=rep(med_year, length(pred_temp)),
+                                               Latitude=rep(med_lat, length(pred_temp)),
+                                               TreeID=tree_id,
+                                               Year=rep(med_year, length(pred_temp)),
+                                               SiteID=site_id,
+                                               Avg_meantemp=pred_temp,
+                                               Avg_meantempQuad=pred_temp_quad,
+                                               Avg_VPD=rep(med_VPD, length(pred_temp)),
+                                               Avg_VPDQuad=rep(med_VPD_quad, length(pred_temp)),
+                                               Avg_precip=rep(med_precip, length(pred_temp)),
+                                               Avg_precipQuad=rep(med_precip_quad, length(pred_temp)))
+
+global_model_dataset_VPD_quercus <- data.frame(Year=rep(med_yr, length(pred_VPD)),
+                                              Centred_year=rep(med_year, length(pred_VPD)),
+                                              Latitude=rep(med_lat, length(pred_VPD)),
+                                              TreeID=tree_id,
+                                              Year=rep(med_year, length(pred_VPD)),
+                                              SiteID=site_id,
+                                              Avg_meantemp=rep(med_temp, length(pred_VPD)),
+                                              Avg_meantempQuad=rep(med_temp_quad, length(pred_VPD)),
+                                              Avg_VPD=pred_VPD,
+                                              Avg_VPDQuad=pred_VPD_quad,
+                                              Avg_precip=rep(med_precip, length(pred_VPD)),
+                                              Avg_precipQuad=rep(med_precip_quad, length(pred_VPD)))
+
+global_model_dataset_precip_quercus <- data.frame(Year=rep(med_yr, length(pred_precip)),
+                                                 Centred_year=rep(med_year, length(pred_precip)),
+                                                 Latitude=rep(med_lat, length(pred_precip)),
+                                                 TreeID=tree_id,
+                                                 Year=rep(med_year, length(pred_precip)),
+                                                 SiteID=site_id,
+                                                 Avg_meantemp=rep(med_temp, length(pred_precip)),
+                                                 Avg_meantempQuad=rep(med_temp_quad, length(pred_precip)),
+                                                 Avg_VPD=rep(med_VPD, length(pred_precip)),
+                                                 Avg_VPDQuad=rep(med_VPD_quad, length(pred_precip)),
+                                                 Avg_precip=pred_precip,
+                                                 Avg_precipQuad=pred_precip_quad)
+#predictions with datasets from above
+global_prediction_temp_quercus <- predict(global_model_quercus, newdata = global_model_dataset_temp_quercus, re.form=NULL, se.fit=TRUE)
+global_prediction_precip_quercus <- predict(global_model_quercus, newdata = global_model_dataset_precip_quercus, re.form=NULL, se.fit=TRUE)
+global_prediction_VPD_quercus <- predict(global_model_quercus, newdata = global_model_dataset_VPD_quercus, re.form=NULL, se.fit=TRUE)
+#putting predictions and se into dataframes
+global_model_dataset_temp_quercus$pred <- global_prediction_temp_quercus$fit
+global_model_dataset_precip_quercus$pred <- global_prediction_precip_quercus$fit
+global_model_dataset_VPD_quercus$pred <- global_prediction_VPD_quercus$fit
+global_model_dataset_temp_quercus$SE <- global_prediction_temp_quercus$se.fit
+global_model_dataset_precip_quercus$SE <- global_prediction_precip_quercus$se.fit
+global_model_dataset_VPD_quercus$SE <- global_prediction_VPD_quercus$se.fit
+#calculating confidence intervals
+global_model_dataset_temp_quercus$LCI <- global_model_dataset_temp_quercus$pred-1.96*global_model_dataset_temp_quercus$SE
+global_model_dataset_temp_quercus$HCI <- global_model_dataset_temp_quercus$pred+1.96*global_model_dataset_temp_quercus$SE
+global_model_dataset_VPD_quercus$LCI <- global_model_dataset_VPD_quercus$pred-1.96*global_model_dataset_VPD_quercus$SE
+global_model_dataset_VPD_quercus$HCI <- global_model_dataset_VPD_quercus$pred+1.96*global_model_dataset_VPD_quercus$SE
+global_model_dataset_precip_quercus$LCI <- global_model_dataset_precip_quercus$pred-1.96*global_model_dataset_precip_quercus$SE
+global_model_dataset_precip_quercus$HCI <- global_model_dataset_precip_quercus$pred+1.96*global_model_dataset_precip_quercus$SE
+
+#making figures for this
+querc_raw_precip <- ggplot(data=global_model_dataset_precip_quercus, aes(x=Avg_precip, y=pred))+
+  geom_line(colour="mediumpurple3", linetype="dashed")+
+  geom_line(data=global_model_dataset_precip_quercus, aes(x=Avg_precip, y=HCI), colour = "pink", linetype = "dashed")+
+  geom_line(data=global_model_dataset_precip_quercus, aes(x=Avg_precip, y=LCI), colour = "pink", linetype = "dashed")+
+  xlab("Average daily precipitation (mm)")+
+  ylab("Ring width (log+1)")+
+  theme_cowplot()+
+  theme(axis.title.x=element_text(size=12),
+        axis.title.y=element_text(size=12),
+        title=element_text(size=12))+
+  theme(plot.title = element_text(face = "italic"))+
+  ylim(3, 7)+
+  xlim(1, 8)
+
+querc_raw_temp <- ggplot(data=global_model_dataset_temp_quercus, aes(x=Avg_meantemp, y=pred))+
+  geom_line(col="mediumpurple3")+
+  geom_line(data=global_model_dataset_temp_quercus, aes(x=Avg_meantemp, y=HCI), colour = "pink", linetype = "dashed")+
+  geom_line(data=global_model_dataset_temp_quercus, aes(x=Avg_meantemp, y=LCI), colour = "pink", linetype = "dashed")+
+  xlab("Average daily mean temperature (°C)")+
+  ylab("Ring width (log+1)")+
+  theme_cowplot()+
+  theme(axis.title.x=element_text(size=12),
+        axis.title.y=element_text(size=12),
+        title=element_text(size=12))+
+  theme(plot.title = element_text(face = "italic"))+
+  ylim(3, 7)+
+  xlim(9, 21)
+
+querc_raw_VPD <- ggplot(data=global_model_dataset_VPD_quercus, aes(x=Avg_VPD, y=pred))+
+  geom_line(colour="mediumpurple3", linetype="dashed")+
+  geom_line(data=global_model_dataset_VPD_quercus, aes(x=Avg_VPD, y=HCI), colour = "pink", linetype = "dashed")+
+  geom_line(data=global_model_dataset_VPD_quercus, aes(x=Avg_VPD, y=LCI), colour = "pink", linetype = "dashed")+
+  xlab("Average daily VPD (kPa)")+
+  ylab("Ring width (log+1)")+
+  ggtitle("Quercus petraea")+
+  theme_cowplot()+
+  theme(axis.title.x=element_text(size=12),
+        axis.title.y=element_text(size=12),
+        title=element_text(size=12))+
+  theme(plot.title = element_text(face = "italic"))+
+  ylim(3, 7)+
+  xlim(0.2, 1)
+
+
+#dropping quadratics
 global_model_no_quads_quercus <- glmmTMB(log1p(Ring.width)~Avg_precip+Avg_meantemp+Avg_VPD+
-                                   WithinPrecip+WithinVPD+WithinTemp+
-                                   (Avg_precip*WithinPrecip)+
-                                   (Avg_VPD*WithinVPD)+
-                                   (Avg_meantemp*WithinTemp)+
                                    Latitude+
                                    (1|Year)+(1|SiteID)+
                                    ns(Centred_year, df=3)+
@@ -172,7 +353,6 @@ global_model_no_quads_quercus <- glmmTMB(log1p(Ring.width)~Avg_precip+Avg_meante
 ##final model
 ##latitude as fixed effect, year and siteID as random effect
 #individual models for each climate driver 
-#models with multiple climate drivers 
 #####
 temperature_quad_model_lat_year_quercus <- glmmTMB(log1p(Ring.width)~AmongTempDev+WithinTemp+
                                              AmongTempDevQuad+WithinTempQuad4+
@@ -202,7 +382,8 @@ precip_quad_model_lat_year_quercus <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+W
                                       data=red_quercus_dataset)
 
 
-#including all climatic variables and quadratics
+#more complicated climate models 
+#including all climatic variables
 all_climate_model_quercus <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDev+AmongTempDev+
                                AmongPrecipDevQuad+AmongVPDDevQuad+AmongTempDevQuad+
                                WithinPrecip+WithinVPD+WithinTemp+
@@ -216,6 +397,8 @@ all_climate_model_quercus <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+AmongVPDDe
                                (1+ns(Centred_year, df=3)|TreeID)+
                                (1|Centred_year:SiteID),
                              data=red_quercus_dataset)
+
+#combinations of different variables
 #VPD + temp
 VPD_temp_climate_model_quercus <- glmmTMB(log1p(Ring.width)~AmongVPDDev+AmongTempDev+
                                     AmongVPDDevQuad+AmongTempDevQuad+
@@ -259,79 +442,167 @@ precip_temp_climate_model_quercus <- glmmTMB(log1p(Ring.width)~AmongPrecipDev+Am
                                      data=red_quercus_dataset)
 
 #creating a dataframe to use in akaike.weights function 
-AICdf_quercus <- matrix(nrow=14, ncol=5)
-colnames(AICdf_quercus) <- c('Model', 'AIC', 'DeltaAIC', 'Weight', 'Species')
+AICdf_quercus <- matrix(nrow=18, ncol=6)
+colnames(AICdf_quercus) <- c('Model', 'Number of Parameters (Fixed)', 'AIC', 'DeltaAIC', 'Weight', 'Species')
 
 summary(null_model_quercus)
+library(insight)
+get_parameters(null_model_quercus)
 AICdf_quercus[1,1] <- c('Null model')
-AICdf_quercus[1,2] <-  9003.3
+AICdf_quercus[1,2] <- c('6')
+AICdf_quercus[1,3] <- 9003.3 #taken from that calculated by glmmTMB in summary
 
-summary(no_quads_quercus)
-AICdf_quercus[2,1] <- c('All climate variables, excluding quadratics')
-AICdf_quercus[2,2] <-  8885.9
+summary(no_quads_temp_quercus)
+get_parameters(no_quads_temp_quercus)
+AICdf_quercus[2,1] <- c('All climate variables, excluding temporal quadratics')
+AICdf_quercus[2,2] <- c('18')
+AICdf_quercus[2,3] <- 8880.9
+
+summary(no_quads_spat_quercus)
+get_parameters(no_quads_spat_quercus)
+AICdf_quercus[3,1] <- c('All climate variables, excluding spatial quadratics')
+AICdf_quercus[3,2] <- c('18')
+AICdf_quercus[3,3] <-  8891.4
 
 summary(precip_quad_model_lat_year_quercus)
-AICdf_quercus[3,1] <- c('Precipitation only')
-AICdf_quercus[3,2] <-  8927.1 
+get_parameters(precip_quad_model_lat_year_quercus)
+AICdf_quercus[4,1] <- c('Precipitation only')
+AICdf_quercus[4,2] <- c('11')
+AICdf_quercus[4,3] <-  8927.1 
 
 summary(temperature_quad_model_lat_year_quercus)
-AICdf_quercus[4,1] <- c('Mean temperature only')
-AICdf_quercus[4,2] <- 8987.6
+AICdf_quercus[5,1] <- c('Mean temperature only')
+AICdf_quercus[5,2] <- c('11')
+AICdf_quercus[5,3] <- 8987.6
 
 summary(VPD_quad_model_lat_year_quercus)
-AICdf_quercus[5,1] <- c('VPD only')
-AICdf_quercus[5,2] <- 8931.7
+AICdf_quercus[6,1] <- c('VPD only')
+AICdf_quercus[6,2] <- c('11')
+AICdf_quercus[6,3] <- 8931.7 
 
 summary(all_climate_model_quercus)
-AICdf_quercus[6,1] <- c('All climate variables')
-AICdf_quercus[6,2] <- 8882.5
-
+get_parameters(all_climate_model_quercus)
+AICdf_quercus[7,1] <- c('All climate variables')
+AICdf_quercus[7,2] <- c('21')
+AICdf_quercus[7,3] <- 8882.5
 
 summary(VPD_temp_climate_model_quercus)
-AICdf_quercus[7,1] <- c('VPD and mean temperature')
-AICdf_quercus[7,2] <- 8912.7
-
+get_parameters(VPD_temp_climate_model_quercus)
+AICdf_quercus[8,1] <- c('VPD and mean temperature')
+AICdf_quercus[8,2] <- c('16')
+AICdf_quercus[8,3] <- 8912.7
 
 summary(VPD_precip_climate_model_quercus)
-AICdf_quercus[8,1] <- c('VPD and precipitation')
-AICdf_quercus[8,2] <- 8905.7
+AICdf_quercus[9,1] <- c('VPD and precipitation')
+AICdf_quercus[9,2] <- c('16')
+AICdf_quercus[9,3] <- 8905.7
 
 summary(precip_temp_climate_model_quercus)
-AICdf_quercus[9,1] <- c('Precipitation and mean temperature')
-AICdf_quercus[9,2] <-  8914.3
+AICdf_quercus[10,1] <- c('Precipitation and mean temperature')
+AICdf_quercus[10,2] <- c('16')
+AICdf_quercus[10,3] <-  8914.3
 
-summary(no_quadsTemp_quercus)
-AICdf_quercus[10,1] <- c('All climate variables, excluding temperature quadratic')
-AICdf_quercus[10,2] <-8892.6
+summary(no_quadsTemp_temp_quercus)
+get_parameters(no_quadsTemp_temp_quercus)
+AICdf_quercus[11,1] <- c('All climate variables, excluding temporal temperature quadratic')
+AICdf_quercus[11,2] <- c('20')
+AICdf_quercus[11,3] <-8880.8
 
-summary(no_quadsVPD_quercus)
-AICdf_quercus[11,1] <- c('All climate variables, excluding VPD quadratic')
-AICdf_quercus[11,2] <- 8885.6
+summary(no_quadsTemp_spat_quercus)
+AICdf_quercus[12,1] <- c('All climate variables, excluding spatial temperature quadratic')
+AICdf_quercus[12,2] <- c('20')
+AICdf_quercus[12,3] <-8894.2
 
-summary(no_quadsPrecip_quercus)
-AICdf_quercus[12,1] <- c('All climate variables, excluding precipitation quadratic')
-AICdf_quercus[12,2] <- 8886.0
+summary(no_quadsVPD_temp_quercus)
+AICdf_quercus[13,1] <- c('All climate variables, excluding temporal VPD quadratic')
+AICdf_quercus[13,2] <- c('20')
+AICdf_quercus[13,3] <- 8880.5
+
+summary(no_quadsVPD_spat_quercus)
+AICdf_quercus[14,1] <- c('All climate variables, excluding spatial VPD quadratic')
+AICdf_quercus[14,2] <- c('20')
+AICdf_quercus[14,3] <- 8887.6
+
+summary(no_quadsPrecip_temp_quercus)
+AICdf_quercus[15,1] <- c('All climate variables, excluding temporal precipitation quadratic')
+AICdf_quercus[15,2] <- c('20')
+AICdf_quercus[15,3] <- 8884.3
+
+summary(no_quadsPrecip_spat_quercus)
+AICdf_quercus[16,1] <- c('All climate variables, excluding spatial precipitation quadratic')
+AICdf_quercus[16,2] <- c('20')
+AICdf_quercus[16,3] <- 8884.2
 
 summary(global_model_quercus)
-AICdf_quercus[13,1] <- c('Global optimum model')
-AICdf_quercus[13,2] <- 8882.5
+get_parameters(global_model_quercus)
+AICdf_quercus[17,1] <- c('Raw climate model')
+AICdf_quercus[17,2] <- c('12')
+AICdf_quercus[17,3] <- 8899.0 
 
 summary(global_model_no_quads_quercus)
-AICdf_quercus[14,1] <- c('Global optimum model, excluding quadratics')
-AICdf_quercus[14,2] <-  8889.3
+get_parameters(global_model_no_quads_quercus)
+AICdf_quercus[18,1] <- c('Raw climate model, excluding quadratics')
+AICdf_quercus[18,2] <- c('9')
+AICdf_quercus[18,3] <- 8899.6 
 
 #calculating delta AIC and weights
 library(qpcR)
-weights_quercus <- akaike.weights(as.numeric(AICdf_quercus[,2]))
-AICdf_quercus[,3] <- weights_quercus$deltaAIC
-AICdf_quercus[,4] <- weights_quercus$weights
+weights_quercus <- akaike.weights(as.numeric(AICdf_quercus[,3]))
+AICdf_quercus[,4] <- weights_quercus$deltaAIC
+AICdf_quercus[,5] <- weights_quercus$weights
+AICdf_quercus[,6] <- c("Quercus petraea")
 
-#writing to csv 
-AICdf_quercus[,5] <- "Quercus petraea"
+AICdf_quercus <- as.data.frame(AICdf_quercus)
+
+#adding quercus to excel sheet
 AIC_df <- read.csv("Figures/AIC_scores.csv")
 AIC_df <- AIC_df[,-1]
-AIC_df <- rbind(AIC_df, AICdf_quercus)
-write.csv(AIC_df, "Figures/AIC_scores.csv")
+AIC_df <- rbind(AICdf_quercus, AIC_df)
+write.csv(AICdf_quercus, "Figures/AIC_scores_2.csv")
+
+#creating figure
+library(ggplot2)
+library(cowplot)
+#nicer colour scheme
+library(viridis)
+#making delta AIC numeric
+AICdf_quercus$DeltaAIC <- as.numeric(AICdf_quercus$DeltaAIC)
+#rounding delta AIC to reasonable dp
+AICdf_quercus$DeltaAIC_lab <- format(round(AICdf_quercus$DeltaAIC, 2), nsmall = 1)
+#rearranging order of model
+AICdf_quercus$Model <- factor(AICdf_quercus$Model, levels=c("Null model", "Mean temperature only",
+                                                        "Precipitation only", "VPD only",
+                                                        "Precipitation and mean temperature", "VPD and mean temperature",
+                                                        "VPD and precipitation", "All climate variables",
+                                                        "All climate variables, excluding temporal quadratics",
+                                                        "All climate variables, excluding temporal temperature quadratic",
+                                                        "All climate variables, excluding temporal precipitation quadratic",
+                                                        "All climate variables, excluding temporal VPD quadratic",
+                                                        "All climate variables, excluding spatial quadratics",
+                                                        "All climate variables, excluding spatial temperature quadratic",
+                                                        "All climate variables, excluding spatial precipitation quadratic",
+                                                        "All climate variables, excluding spatial VPD quadratic",
+                                                        "Raw climate model",
+                                                        "Raw climate model, excluding quadratics"))
+
+#creating figure
+library(ggplot2)
+library(cowplot)
+library(viridis)
+AIC_quercus_fig <- ggplot(data=AICdf_quercus, aes(x=Model, y=DeltaAIC, fill=Model))+
+  geom_bar(stat="identity")+
+  theme_cowplot()+
+  theme(axis.text=element_text(size=10))+
+  geom_text(aes(label=DeltaAIC_lab), vjust=-0.5, size = 2.5, position = position_dodge(0.9))+
+  ylab("Delta AIC")+
+  scale_fill_viridis(discrete=TRUE)+
+  theme(legend.position="none")+
+  ggtitle("Quercus petraea")+
+  scale_x_discrete(labels= c(1:18))+
+  theme(title=element_text(size=12),
+        axis.title.x=element_blank())+
+  theme(plot.title = element_text(face = "italic"))+
+  ylim(0,130)
 
 ##plotting 
 library(dplyr)
@@ -562,13 +833,10 @@ quercus_temp <- ggplot(data=red_quercus_dataset, aes(x=AmongTemp, y=log1p(Ring.w
   theme_cowplot()+
   xlab("Deviation from global average temperature (°C)")+
   ylab("Ring width (log+1)")+
-  ggtitle("Quercus petraea")+
   theme(axis.title.x=element_text(size=12),
-        axis.title.y=element_text(size=12), 
-        title=element_text(size=12))+
-  theme(plot.title = element_text(face = "italic"))#+
-  #ylim(4,8)+
-  #xlim(-8, 6)
+        axis.title.y=element_text(size=12))+
+  ylim(4,8)+
+  xlim(-8, 6)
 
 quercus_temp
 #for VPD
@@ -651,9 +919,14 @@ quercus_VPD <- ggplot(data=red_quercus_dataset, aes(x=AmongVPD, y=log1p(Ring.wid
   xlab("Deviation from global average VPD (kPa)")+
   ylab("Ring width (log+1)")+
   theme(axis.title.x=element_text(size=12))+
-  theme(axis.title.y=element_text(size=12))#+
-  #ylim(2,6)+
-  #xlim(-0.5, 1)
+  theme(axis.title.y=element_text(size=12))+
+  ggtitle("Quercus petraea")+
+  theme(axis.title.x=element_text(size=12),
+        axis.title.y=element_text(size=12), 
+        title=element_text(size=12))+
+  theme(plot.title = element_text(face = "italic"))+
+  ylim(2,6)+
+  xlim(-0.5, 1)
 
 quercus_VPD
 
@@ -745,9 +1018,9 @@ quercus_Precip <- ggplot(data=red_quercus_dataset, aes(x=AmongPrecip, y=log1p(Ri
   xlab("Deviation from global average precipitation (mm)")+
   ylab("Ring width (log+1)")+
   theme(axis.title.x=element_text(size=12))+
-  theme(axis.title.y=element_text(size=12))#+
-  #ylim(4,6)+
-  #xlim(-4, 6)
+  theme(axis.title.y=element_text(size=12))+
+  ylim(4,6)+
+  xlim(-4, 6)
 
 quercus_Precip
 
