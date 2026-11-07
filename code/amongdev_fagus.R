@@ -896,6 +896,8 @@ fagus_temp
 amongVPDs <- seq(MinAmongVPDDev, MaxAmongVPDDev, 0.2) 
 within_points_df <- list()
 
+library(splines)
+
 for(i in 1:length(amongVPDs)){
   med_amongVPDDev <- amongVPDs[i]
   med_amongVPDDevQuad <- med_amongVPDDev^2

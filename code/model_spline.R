@@ -182,4 +182,3 @@ plot_grid(tree_plot_betula[[1]], tree_plot_betula[[2]], tree_plot_betula[[3]],
           ncol=5)+
   draw_label("Age (scaled)", x=0.5, y=  0, vjust=-0.5, angle= 0) +
   draw_label("Tree ring width (log + 1)", x=  0, y=0.5, vjust= 1.5, angle=90)
-
